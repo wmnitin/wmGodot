@@ -1,9 +1,9 @@
 extends RefCounted
 class_name Palette
 
-const PLAYER := Color("2D7DFF")
-const ENEMY := Color("FF4D55")
-const NEUTRAL := Color("8E97A8")
+const PLAYER := Color("2F7BF5")
+const ENEMY := Color("E8433A")
+const NEUTRAL := Color("C9CCD1")
 const WORLD := Color("6FA37A")
 const INK := Color("1C2A44")
 const CREAM := Color("FFF8EE")

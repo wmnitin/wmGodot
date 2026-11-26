@@ -16,7 +16,7 @@ func _init() -> void:
 
 func _late_checks() -> void:
 	_failed += _check("settings save and load", _settings_roundtrip())
-	_failed += _audio_runtime()
+	_failed += await _audio_runtime()
 	if _failed == 0:
 		print("ALL CHECKS PASSED")
 		quit(0)
@@ -612,18 +612,44 @@ func _audio_runtime() -> int:
 	]
 	for file_name in names:
 		if not FileAccess.file_exists("res://assets/audio/%s" % file_name):
-			print("  FAIL  soundtrack files exist and music is set to loop")
+			print("  FAIL  soundtrack files exist and music is set to loop (missing %s)" % file_name)
 			return 1
 	var hooks = root.get_node_or_null("AudioHooks")
 	if hooks == null or not hooks.music_is_looping():
-		print("  FAIL  soundtrack files exist and music is set to loop")
+		print("  FAIL  soundtrack files exist and music is set to loop (stream is not a forward loop)")
 		return 1
+	var settings = root.get_node_or_null("GameSettings")
+	if settings == null:
+		print("  FAIL  soundtrack files exist and music is set to loop (no settings)")
+		return 1
+	var was_enabled: bool = settings.music_enabled
+	var was_volume: float = settings.music_volume
+	settings.music_enabled = true
+	if settings.music_volume <= 0.001:
+		settings.music_volume = 0.7
 	hooks.play_sfx("ui")
 	hooks.play_sfx("spawn")
 	hooks.start_music()
+	for _i in 3:
+		await process_frame
 	var playing: bool = hooks._music.playing
-	print("  %s  soundtrack files exist and music is set to loop" % ("PASS" if playing else "FAIL"))
-	return 0 if playing else 1
+	var driver := str(AudioServer.get_driver_name())
+	var assigned: bool = hooks._music.stream != null
+	# Dummy (headless, especially macOS) often never flips `playing`. The loop
+	# points on the stream are what the real driver uses, so that still fails
+	# the check above when the march is not actually set to loop.
+	var ok: bool = assigned and (playing or driver == "Dummy")
+	if ok and not playing:
+		print("    note  %s audio driver did not report playback; the march stream is assigned and set to loop" % driver)
+	if not ok:
+		print("  FAIL  soundtrack files exist and music is set to loop (driver=%s playing=%s stream=%s)" % [driver, playing, assigned])
+	else:
+		print("  PASS  soundtrack files exist and music is set to loop")
+	settings.music_enabled = was_enabled
+	settings.music_volume = was_volume
+	if not was_enabled:
+		hooks.stop_music()
+	return 0 if ok else 1
 
 
 func _tower_height() -> bool:

@@ -124,6 +124,7 @@ func _begin_studio() -> void:
 	_phase = "studio"
 	_tick = 0
 	_queue = [
+		"lineup",
 		"blue1", "blue2", "blue3", "bluemax",
 		"red1", "red2", "red3", "redmax",
 		"neutral1", "neutral2", "neutral3", "neutralmax",
@@ -145,7 +146,9 @@ func _next_studio() -> void:
 		return
 	var item: String = _queue.pop_front()
 	_tick = 0
-	if item.begins_with("blue") or item.begins_with("red") or item.begins_with("neutral"):
+	if item == "lineup":
+		_show_lineup()
+	elif item.begins_with("blue") or item.begins_with("red") or item.begins_with("neutral"):
 		_show_team_tower(item)
 	elif item == "factory":
 		var factory = _game.sim.tower("n_c")
@@ -177,6 +180,30 @@ func _next_studio() -> void:
 		else:
 			_studio.rotation.y = 0.4
 			_frame(Vector3(0, 0.26, 0), Vector3(1.9, 0.6, 0.45))
+
+
+func _show_lineup() -> void:
+	_hide_towers()
+	_studio = Node3D.new()
+	_studio.name = "towers_row"
+	_game.add_child(_studio)
+	var owners := ["player", "enemy", "neutral"]
+	var counts := [4, 18, 40, 60]
+	for r in 3:
+		for c in 4:
+			var entry := {
+				"id": "row_%d_%d" % [r, c],
+				"type": "outpost",
+				"owner": owners[r],
+				"count": counts[c],
+				"pos": Vector2.ZERO,
+			}
+			var tower: Node3D = _game._make_tower(entry)
+			_studio.add_child(tower)
+			tower.position = Vector3((float(c) - 1.5) * 2.75, 0, (1.0 - float(r)) * 3.7)
+			_game._layout_tower(tower, entry, 0.0)
+	_game._camera.fov = 42.0
+	_frame(Vector3(0, 1.8, 0), Vector3(16.0, 13.5, 22.0))
 
 
 func _show_team_tower(item: String) -> void:
@@ -219,10 +246,11 @@ func _show_tower(id: String, count: int, file_name: String, focus_y: float) -> v
 	var tower: Node3D = _game._towers[id]
 	_studio = Node3D.new()
 	_studio.name = file_name
+	_game._camera.fov = 33.0
 	var height: float = _game._stack_world(count, id == "n_c")
-	var focus: Vector3 = tower.global_position + Vector3(0, height * 0.5, 0)
-	var pull := 1.15 if id == "n_c" else 1.0
-	_frame(focus, Vector3(height * 0.95, height * 0.5, height * 1.2) * pull)
+	var focus: Vector3 = tower.global_position + Vector3(0, height * 0.45, 0)
+	var dist := maxf(height * 1.35, 3.6 if id != "n_c" else 6.5)
+	_frame(focus, Vector3(dist * 0.85, dist * 0.62, dist * 1.15))
 	if focus_y < 0.0:
 		_frame(focus, Vector3(5.4, 3.3, 6.0))
 

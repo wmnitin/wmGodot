@@ -284,7 +284,13 @@ func _rig_tank_turret(model: Node3D) -> void:
 
 func _keep_under(node: Node3D, pivot: Node3D, pivot_xf: Transform3D) -> void:
 	var old := node.transform
-	node.get_parent().remove_child(node)
+	node.owner = null
+	var parent := node.get_parent()
+	if parent != null:
+		parent.remove_child(node)
+	# The imported tank scene owns these meshes. Clearing owner avoids the
+	# "owner Root Scene inconsistent" warning when they move under Turret.
+	node.owner = null
 	pivot.add_child(node)
 	node.transform = pivot_xf.affine_inverse() * old
 

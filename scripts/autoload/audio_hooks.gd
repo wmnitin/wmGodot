@@ -96,7 +96,10 @@ func set_rumble(active: bool) -> void:
 func music_is_looping() -> bool:
 	if _music_stream == null:
 		_music_stream = _load_stream(MUSIC, true)
-	return _music_stream is AudioStreamWAV and _music_stream.loop_mode == AudioStreamWAV.LOOP_FORWARD
+	if not (_music_stream is AudioStreamWAV):
+		return false
+	var wav := _music_stream as AudioStreamWAV
+	return wav.loop_mode == AudioStreamWAV.LOOP_FORWARD and wav.loop_end > wav.loop_begin and wav.get_length() > 0.5
 
 
 func _on_settings() -> void:
@@ -123,9 +126,13 @@ func _load_stream(path: String, looped: bool) -> AudioStream:
 	var stream := loaded.duplicate() as AudioStream
 	if looped and stream is AudioStreamWAV:
 		var wav := stream as AudioStreamWAV
-		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		wav.loop_begin = 0
-		wav.loop_end = int(wav.mix_rate * wav.get_length())
+		var frames := int(round(wav.mix_rate * wav.get_length()))
+		if frames > 1:
+			wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+			wav.loop_begin = 0
+			# The mixer wraps once the cursor reaches loop_end, so this is the
+			# last frame. A zero end disables the loop and the voice stops.
+			wav.loop_end = frames
 	return stream
 
 

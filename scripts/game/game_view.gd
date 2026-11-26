@@ -5,13 +5,17 @@ signal restart_requested
 
 ## Sim space stays in pixels. The view maps that onto a small 3D meadow.
 const WORLD_SCALE := 0.012
-const PITCH_DEG := 48.0
-const FLOOR_H := 0.98
-const MODULE_SCALE := 1.78
+const PITCH_DEG := 58.0
+const BODY_H := 0.92
+const BAND_H := 0.16
+const ROOF_H := 0.28
+const TOWER_W := 2.15
 
 var sim: MatchSim
 var _models := CapyModels.new()
 var _kits := KitLibrary.new()
+const Bunkers = preload("res://scripts/view/bunker_mesh.gd")
+var _bunkers = Bunkers.new()
 var _camera: Camera3D
 var _towers := {}
 var _links := {}
@@ -82,17 +86,23 @@ func _build_world() -> void:
 	env.ambient_light_color = Color("FFE4C0")
 	env.ambient_light_energy = 0.5
 	env.adjustment_enabled = true
-	env.adjustment_saturation = 1.18
+	env.adjustment_saturation = 1.28
+	env.adjustment_brightness = 1.03
+	env.glow_enabled = true
+	env.glow_intensity = 0.28
+	env.glow_strength = 0.55
+	env.glow_bloom = 0.08
+	env.glow_hdr_threshold = 0.9
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	add_child(world_env)
 
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-52, -28, 0)
+	sun.look_at(Vector3(0.7, -1.15, 0.55), Vector3.UP)
 	sun.light_color = Color("FFE0A8")
 	sun.light_energy = 1.45
 	sun.shadow_enabled = true
-	sun.shadow_blur = 1.8
+	sun.shadow_blur = 2.2
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 40.0
 	sun.shadow_bias = 0.05
@@ -111,7 +121,7 @@ func _build_world() -> void:
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(60, 60)
 	ground.mesh = plane
-	ground.material_override = _solid(Color("63C63A"), 0.95)
+	ground.material_override = _solid(Color("5ED63A"), 0.95)
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(ground)
 
@@ -168,7 +178,9 @@ func _grass_mesh(field: Vector2) -> ArrayMesh:
 			var v := float(z) / float(nz)
 			var n := sin(u * 17.0) * sin(v * 13.0) * 0.5 + sin(u * 6.0 + v * 8.0) * 0.35 + sin(u * 23.0 + 1.7) * sin(v * 19.0) * 0.2
 			var mix := clampf(n * 0.5 + 0.5, 0.0, 1.0)
-			var color := Color("3EAE30").lerp(Color("7ED85A"), mix)
+			var color := Color("3FBF28").lerp(Color("9AF25A"), mix)
+			if mix < 0.38:
+				color = color.lerp(Color("2C9A20"), 0.42)
 			verts.append(Vector3((u - 0.5) * field.x, 0.0, (v - 0.5) * field.y))
 			cols.append(color)
 	for z in nz:
@@ -228,18 +240,10 @@ func _add_decor(field: Vector2) -> void:
 	_place_prop(KitLibrary.BLASTER + "crate-medium.glb", Vector3(1.9, 0, edge), 0.4, -0.4)
 	_place_prop(KitLibrary.SURVIVAL + "barrel.glb", Vector3(3.2, 0, edge - 0.08), 0.36, 0.8)
 	_place_prop(KitLibrary.SURVIVAL + "tree-log.glb", Vector3(0.35, 0, edge + 0.12), 0.26, 1.4)
-	_place_prop(KitLibrary.SURVIVAL + "fence.glb", Vector3(-4.4, 0, -1.2), 0.7, 0.15)
-	_place_prop(KitLibrary.SURVIVAL + "fence.glb", Vector3(4.5, 0, 1.4), 0.7, -0.2)
-	for i in 6:
-		var z := lerpf(-field.y * 0.4, field.y * 0.4, float(i) / 5.0)
-		var tall := i % 2 == 0
-		var left := KitLibrary.NATURE + ("tree_pineTallA.glb" if tall else "tree_pineRoundA.glb")
-		var right := KitLibrary.SURVIVAL + ("tree-tall.glb" if tall else "tree.glb")
-		_place_prop(left, Vector3(-field.x * 0.46, 0, z), 1.35 + float(i % 3) * 0.12, float(i))
-		_place_prop(right, Vector3(field.x * 0.46, 0, z + 0.4), 1.2 + float((i + 1) % 3) * 0.1, float(i) * 0.7)
-		if i % 2 == 0:
-			_place_prop(KitLibrary.SURVIVAL + "grass.glb", Vector3(-1.6, 0, z * 0.3), 0.28, float(i))
-			_place_prop(KitLibrary.NATURE + "rock_smallA.glb", Vector3(2.1, 0, z * 0.25), 0.22, 0.4)
+	for i in 7:
+		var z := lerpf(-field.y * 0.42, field.y * 0.42, float(i) / 6.0)
+		_plant_pine(Vector3(-field.x * 0.5, 0, z), 0.62 + float(i % 3) * 0.06)
+		_plant_pine(Vector3(field.x * 0.5, 0, z + 0.35), 0.58 + float((i + 1) % 3) * 0.07)
 
 
 func _add_hedges() -> void:
@@ -249,9 +253,17 @@ func _add_hedges() -> void:
 		var center := _to_world(obstacle.pos)
 		for i in 5:
 			var along := float(i) - 2.0
-			_place_prop(KitLibrary.SURVIVAL + "fence.glb", center + Vector3(along * 0.42, 0, 0), 0.62, 0.0)
-			if i % 2 == 0:
-				_place_prop(KitLibrary.NATURE + "tree_pineSmallA.glb", center + Vector3(along * 0.42, 0, 0.28), 0.85, float(i))
+			_plant_pine(center + Vector3(along * 0.38, 0, sin(along) * 0.08), 0.48 + float(i % 2) * 0.08)
+
+
+func _plant_pine(at: Vector3, scale: float) -> void:
+	var pine := MeshInstance3D.new()
+	pine.mesh = _models.pine_mesh()
+	pine.material_override = _models.vertex_material()
+	pine.position = at
+	pine.scale = Vector3.ONE * scale
+	pine.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	add_child(pine)
 
 
 func _place_prop(path: String, at: Vector3, height: float, yaw: float) -> void:
@@ -470,38 +482,43 @@ func _make_tower(entry: Dictionary) -> Node3D:
 	var factory := str(entry.type) == "tank_factory"
 	node.set_meta("factory", factory)
 	node.set_meta("team", team)
+	node.set_meta("team_color", Palette.team(team))
+	node.set_meta("flash", 0.0)
 	node.position = _to_world(entry.pos)
-	node.add_child(_make_blob_node(2.8 if factory else 2.3))
-
-	var piece_scale := MODULE_SCALE * (1.22 if factory else 1.0)
-	var floors := [
-		KitLibrary.CASTLE + "tower-square-mid-door.glb",
-		KitLibrary.CASTLE + "tower-square-mid-windows.glb",
-		KitLibrary.CASTLE + "tower-square-mid.glb",
-	]
-	for i in 3:
-		var floor := _kits.grounded(floors[i])
+	node.add_child(_make_blob_node(2.4 if factory else 1.7))
+	var paints: Array = []
+	var stories := 1 if factory else 3
+	for i in stories:
+		var floor := _make_floor(i, factory, paints)
 		floor.name = "Floor%d" % i
-		floor.scale = Vector3.ONE * piece_scale
 		node.add_child(floor)
-	var roof := _kits.grounded(KitLibrary.CASTLE + "tower-square-top-roof-rounded.glb")
+	var top_w := _floor_span(stories - 1, factory)
+	var roof := Node3D.new()
 	roof.name = "Roof"
-	roof.scale = Vector3.ONE * piece_scale
+	var lip_w := top_w + 0.22
+	var cap_w := top_w + 0.1
+	var lip := _bunker_part(_bunkers.cap(Vector3(lip_w, 0.08, lip_w * (0.78 if factory else 1.0))), _bunkers.team_material(Palette.team(team)))
+	lip.position = Vector3(0, 0.04, 0)
+	paints.append(lip.material_override)
+	roof.add_child(lip)
+	var cap := _bunker_part(_bunkers.cap(Vector3(cap_w, ROOF_H, cap_w * (0.76 if factory else 0.96))), _bunkers.team_material(Palette.team(team)))
+	cap.position = Vector3(0, 0.08 + ROOF_H * 0.5, 0)
+	paints.append(cap.material_override)
+	roof.add_child(cap)
 	node.add_child(roof)
-	var flag := _kits.grounded(KitLibrary.CASTLE + "flag.glb")
+	var flag := Node3D.new()
 	flag.name = "Flag"
-	flag.scale = Vector3.ONE * (piece_scale * 1.15)
-	flag.rotation.y = PI * 0.5
 	flag.visible = false
+	var pole := _bunker_part(_bunkers.body(Vector3(0.06, 0.48, 0.06), 0.02), _bunkers.flat_material(Color("6B4428")))
+	pole.position = Vector3(0, 0.24, 0)
+	var cloth := _bunker_part(_bunkers.body(Vector3(0.28, 0.18, 0.04), 0.03), _bunkers.flat_material(Bunkers.FLAG))
+	cloth.position = Vector3(0.14, 0.36, 0)
+	flag.add_child(pole)
+	flag.add_child(cloth)
 	node.add_child(flag)
 	if factory:
-		var cannon := _kits.grounded(KitLibrary.DEFENSE + "weapon-cannon.glb")
-		cannon.name = "Cannon"
-		cannon.scale = Vector3.ONE * (piece_scale * 0.85)
-		node.add_child(cannon)
-		var chimney := _kits.grounded(KitLibrary.SPACE + "chimney.glb")
+		var chimney := _bunker_part(_bunkers.chimney(Vector3(0.34, 1.15, 0.34)), _bunkers.flat_material(Bunkers.CHIMNEY))
 		chimney.name = "Chimney"
-		chimney.scale = Vector3.ONE * (piece_scale * 0.55)
 		node.add_child(chimney)
 		for s in 3:
 			var puff := MeshInstance3D.new()
@@ -515,43 +532,99 @@ func _make_tower(entry: Dictionary) -> Node3D:
 			puff.material_override = _smoke_material()
 			puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			node.add_child(puff)
-	_paint_tower(node, team)
+	node.set_meta("paints", paints)
+	_apply_tower_color(node)
 
 	var count := Label3D.new()
 	count.name = "Count"
-	count.font_size = 96
-	count.pixel_size = 0.012
+	count.font_size = 78
+	count.pixel_size = 0.01
 	count.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	count.outline_size = 18
-	count.modulate = Palette.CREAM
+	count.outline_size = 22
+	count.modulate = Color.WHITE
 	count.outline_modulate = Palette.INK
 	count.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	node.add_child(count)
-
 	var badge := Label3D.new()
 	badge.name = "MaxBadge"
 	badge.text = "MAX"
-	badge.font_size = 54
-	badge.pixel_size = 0.007
+	badge.font_size = 42
+	badge.pixel_size = 0.006
 	badge.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	badge.modulate = Color("1A1206")
-	badge.outline_size = 14
-	badge.outline_modulate = Palette.GOLD
+	badge.outline_size = 12
+	badge.outline_modulate = Color("F5B72F")
 	badge.visible = false
 	badge.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	node.add_child(badge)
-
 	var dots := Label3D.new()
 	dots.name = "Dots"
-	dots.font_size = 72
-	dots.pixel_size = 0.01
+	dots.font_size = 46
+	dots.pixel_size = 0.008
 	dots.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	dots.modulate = Color.WHITE
-	dots.outline_size = 8
+	dots.outline_size = 10
 	dots.outline_modulate = Palette.INK
 	dots.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	node.add_child(dots)
 	return node
+
+
+func _make_floor(index: int, factory: bool, paints: Array) -> Node3D:
+	var floor := Node3D.new()
+	var span := _floor_span(index, factory)
+	var depth := span * (0.74 if factory else 1.0)
+	var body_h := 0.7 if factory else BODY_H
+	var body_mat := _bunkers.team_material(Color.WHITE)
+	paints.append(body_mat)
+	var body := _bunker_part(_bunkers.body(Vector3(span, body_h, depth), 0.2 if not factory else 0.24), body_mat)
+	body.position = Vector3(0, body_h * 0.5, 0)
+	floor.add_child(body)
+	var band := _bunker_part(_bunkers.band(Vector3(span + 0.12, BAND_H, depth + 0.12)), _bunkers.flat_material(Bunkers.BAND))
+	band.position = Vector3(0, body_h + BAND_H * 0.5, 0)
+	floor.add_child(band)
+	var slit_w := span * 0.62
+	var frame := _bunker_part(_bunkers.slit(Vector3(slit_w + 0.1, 0.22, 0.08)), _bunkers.flat_material(Bunkers.FRAME))
+	frame.position = Vector3(0, body_h * 0.58, depth * 0.5 + 0.02)
+	floor.add_child(frame)
+	var slit := _bunker_part(_bunkers.slit(Vector3(slit_w, 0.14, 0.07)), _bunkers.flat_material(Bunkers.SLIT))
+	slit.position = Vector3(0, body_h * 0.58, depth * 0.5 + 0.05)
+	floor.add_child(slit)
+	if index == 0:
+		var door_w := 0.62 if factory else 0.46
+		var door_h := 0.55 if factory else 0.5
+		var door_frame := _bunker_part(_bunkers.door(Vector3(door_w + 0.14, door_h + 0.1, 0.1)), _bunkers.flat_material(Bunkers.FRAME))
+		door_frame.position = Vector3(0, door_h * 0.46, depth * 0.5 + 0.02)
+		floor.add_child(door_frame)
+		var door := _bunker_part(_bunkers.door(Vector3(door_w, door_h, 0.08)), _bunkers.flat_material(Bunkers.SLIT))
+		door.position = Vector3(0, door_h * 0.46, depth * 0.5 + 0.045)
+		floor.add_child(door)
+	floor.set_meta("body_h", body_h)
+	floor.set_meta("span", span)
+	return floor
+
+
+func _floor_span(index: int, factory: bool) -> float:
+	if factory:
+		return 2.7
+	return TOWER_W * (1.0 - 0.045 * float(index))
+
+
+func _bunker_part(mesh: Mesh, mat: Material) -> MeshInstance3D:
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.material_override = mat
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	return node
+
+
+func _apply_tower_color(node: Node3D) -> void:
+	var base: Color = node.get_meta("team_color", Palette.NEUTRAL)
+	var flash := float(node.get_meta("flash", 0.0))
+	var shown := base.lerp(Color.WHITE, clampf(flash, 0.0, 1.0) * 0.72)
+	for mat in node.get_meta("paints", []):
+		if mat is StandardMaterial3D:
+			(mat as StandardMaterial3D).albedo_color = shown
 
 
 func _process(delta: float) -> void:
@@ -614,80 +687,90 @@ func _sync_towers(delta: float) -> void:
 			_punch[id] = 1.12
 		var team := str(entry.owner)
 		if team != str(_prev_owner.get(id, "")):
-			_punch[id] = 1.18
+			_punch[id] = 1.22
+			if delta > 0.0:
+				node.set_meta("flash", 1.0)
 			if str(_prev_owner.get(id, "")) != "" and sim.state == "playing":
 				AudioHooks.play_sfx("capture")
-			_paint_tower(node, team)
+			node.set_meta("team", team)
+			node.set_meta("team_color", Palette.team(team))
 		_prev_count[id] = int(entry.count)
 		_prev_owner[id] = team
 		_punch[id] = lerpf(float(_punch[id]), 1.0, 1.0 - exp(-10.0 * delta))
+		var flash := float(node.get_meta("flash", 0.0))
+		if delta <= 0.0:
+			flash = 0.0
+		else:
+			flash = move_toward(flash, 0.0, delta * 1.6)
+		node.set_meta("flash", flash)
+		_layout_tower(node, entry, delta)
 
-		var spec: Dictionary = sim.spec_of(entry)
-		var show_count := bool(spec.can_be_targeted)
-		var factory := bool(node.get_meta("factory"))
-		var floors := TowerLook.floor_count(int(entry.count))
-		var cursor := 0.0
-		var wide := 0.9
-		for i in 3:
-			var floor: Node3D = node.get_node("Floor%d" % i)
-			var show_floor := show_count and i < floors
-			floor.visible = show_floor
-			if not show_floor:
-				continue
-			floor.position = Vector3(0, cursor, 0)
-			var floor_size: Vector3 = floor.get_meta("size")
-			wide = floor_size.x * floor.scale.x * 0.5
-			cursor += floor_size.y * floor.scale.y
-		var roof: Node3D = node.get_node("Roof")
-		roof.visible = show_count
-		roof.position = Vector3(0, cursor, 0)
-		var roof_size: Vector3 = roof.get_meta("size")
-		var roof_h := roof_size.y * roof.scale.y
-		var flag: Node3D = node.get_node("Flag")
-		flag.visible = show_count and sim.is_full(entry)
-		flag.position = Vector3(wide * 0.95, cursor + roof_h * 0.82, wide * 0.05)
-		if factory:
-			var cannon: Node3D = node.get_node("Cannon")
-			cannon.position = Vector3(-wide * 0.05, cursor + roof_h, wide * 0.15)
-			var chimney: Node3D = node.get_node("Chimney")
-			var chimney_h: float = float(chimney.get_meta("height")) * chimney.scale.y
-			chimney.position = Vector3(wide * 0.85, cursor + roof_h * 0.55, -wide * 0.2)
+
+func _layout_tower(node: Node3D, entry: Dictionary, delta: float) -> void:
+	_apply_tower_color(node)
+	var id := str(entry.id)
+	var spec: Dictionary = sim.spec_of(entry)
+	var show_count := bool(spec.can_be_targeted)
+	var factory := bool(node.get_meta("factory"))
+	var floors := 1 if factory else TowerLook.floor_count(int(entry.count))
+	var link_floors := TowerLook.floor_count(int(entry.count))
+	var cursor := 0.0
+	var wide := TOWER_W * 0.5
+	for i in 3:
+		var floor := node.get_node_or_null("Floor%d" % i) as Node3D
+		if floor == null:
+			continue
+		var show_floor := show_count and i < floors
+		var goal := 1.0 if show_floor else 0.0
+		var appear := float(floor.get_meta("appear", goal))
+		if not floor.has_meta("appear"):
+			appear = goal
+		appear = move_toward(appear, goal, delta * 2.8)
+		floor.set_meta("appear", appear)
+		floor.visible = appear > 0.03
+		var stretch := sin(clampf(appear, 0.0, 1.0) * PI) * 0.1
+		var xz := 1.0 + (1.0 - appear) * 0.16 - stretch * 0.35
+		floor.scale = Vector3(xz, maxf(appear + stretch, 0.001), xz)
+		floor.position = Vector3(0, cursor, 0)
+		var body_h := float(floor.get_meta("body_h", BODY_H))
+		wide = float(floor.get_meta("span", TOWER_W)) * 0.5
+		if floor.visible:
+			cursor += (body_h + BAND_H) * floor.scale.y
+	var roof: Node3D = node.get_node("Roof")
+	roof.visible = show_count
+	roof.position = Vector3(0, cursor, 0)
+	var flag: Node3D = node.get_node("Flag")
+	flag.visible = show_count and sim.is_full(entry)
+	flag.position = Vector3(wide * 0.72, cursor + ROOF_H * 0.7, -wide * 0.15)
+	if factory:
+		var chimney := node.get_node_or_null("Chimney") as Node3D
+		if chimney != null:
+			chimney.position = Vector3(wide * 0.62, cursor + ROOF_H + 0.52, -wide * 0.2)
 			for s in 3:
 				var puff: MeshInstance3D = node.get_node("Smoke%d" % s)
 				var rise := fmod(sim.elapsed * 0.35 + float(s) * 0.33, 1.0)
-				puff.position = chimney.position + Vector3(0, chimney_h * 0.92 + rise * 0.55, 0)
-				puff.scale = Vector3.ONE * (0.35 + rise * 0.7)
-		var peak := cursor + roof_h
-		var count: Label3D = node.get_node("Count")
-		count.visible = show_count
-		count.text = str(int(entry.count))
-		count.scale = Vector3.ONE * float(_punch[id])
-		count.position = Vector3(0, peak + 0.42, 0.05)
-		var full := show_count and sim.is_full(entry)
-		var badge: Label3D = node.get_node("MaxBadge")
-		badge.visible = full
-		badge.position = Vector3(wide * 0.35, peak + 0.08, -0.05)
-		var used := sim.outgoing(id).size()
-		var marks := ""
-		for i in floors:
-			marks += "● " if i < used else "○ "
-		var dots: Label3D = node.get_node("Dots")
-		dots.visible = show_count
-		dots.text = marks.strip_edges()
-		dots.position = Vector3(0, cursor + roof_h * 0.58, wide + 0.08)
-		var grab := 1.05 if id == _source_id and _mode == "link" else 1.0
-		node.scale = Vector3.ONE * grab
-
-
-func _paint_tower(node: Node3D, team: String) -> void:
-	node.set_meta("team", team)
-	var color := Palette.team(team)
-	for i in 3:
-		_kits.tint(node.get_node("Floor%d" % i), color, 0.84)
-	_kits.tint(node.get_node("Roof"), color, 0.8)
-	var cannon := node.get_node_or_null("Cannon")
-	if cannon != null:
-		_kits.tint(cannon, color, 0.7)
+				puff.position = chimney.position + Vector3(0, 0.62 + rise * 0.4, 0)
+				puff.scale = Vector3.ONE * (0.3 + rise * 0.55)
+	var peak := cursor + ROOF_H
+	var count: Label3D = node.get_node("Count")
+	count.visible = show_count
+	count.text = str(int(entry.count))
+	count.scale = Vector3.ONE * float(_punch.get(id, 1.0))
+	count.position = Vector3(0, peak + 0.58, 0)
+	var full := show_count and sim.is_full(entry)
+	var badge: Label3D = node.get_node("MaxBadge")
+	badge.visible = full
+	badge.position = Vector3(wide * 0.15, peak + 0.95, 0)
+	var used := sim.outgoing(id).size() if id != "" and sim != null else 0
+	var marks := ""
+	for i in link_floors:
+		marks += "● " if i < used else "○ "
+	var dots: Label3D = node.get_node("Dots")
+	dots.visible = show_count
+	dots.text = marks.strip_edges()
+	dots.position = Vector3(0, peak + 0.2, 0)
+	var grab := 1.06 if id == _source_id and _mode == "link" else 1.0
+	node.scale = Vector3.ONE * grab
 
 
 func _sync_links() -> void:
@@ -728,7 +811,7 @@ func _sync_links() -> void:
 			var mid_bed := (a + b) * 0.5
 			bed.position = Vector3(mid_bed.x, 0.035, mid_bed.z)
 			bed.look_at(bed.position + dir, Vector3.UP)
-			bed.scale = Vector3(0.42, 0.02, length)
+			bed.scale = Vector3(0.56, 0.025, length)
 		for i in ribbon.get_child_count():
 			var dash: MeshInstance3D = ribbon.get_child(i)
 			if dash.name == "Bed":
@@ -744,7 +827,7 @@ func _sync_links() -> void:
 			if dir.length_squared() > 0.0001:
 				dash.look_at(dash.position + dir, Vector3.UP)
 			# Wide dash, pinched at the front so it reads as a chevron.
-			dash.scale = Vector3(0.34, 0.03, dash_len)
+			dash.scale = Vector3(0.44, 0.035, dash_len)
 	var stale: Array = []
 	for id in _links.keys():
 		if not live.has(id):
@@ -801,7 +884,7 @@ func _place_unit(unit: Node3D, soldier: Dictionary) -> void:
 	if not dying:
 		unit.rotate_object_local(Vector3.RIGHT, step * 0.14)
 	var kind := str(soldier.get("kind", "soldier"))
-	var base_scale := 1.45 if kind == "tank" else 1.55
+	var base_scale := 1.15 if kind == "tank" else 0.9
 	if kind == "tank":
 		var turret := unit.find_child("Turret", true, false) as Node3D
 		if turret != null:
@@ -1014,7 +1097,7 @@ func _tower_at(screen: Vector2):
 	for entry in sim.towers:
 		var base := _to_world(entry.pos)
 		var height := _stack_world(int(entry.count), str(entry.type) == "tank_factory") + 0.9
-		var half := Vector3(1.85, height * 0.5, 1.85)
+		var half := Vector3(1.2, height * 0.5, 1.2)
 		var center := base + Vector3(0, half.y, 0)
 		var dist := _ray_box(origin, dir, center, half)
 		if dist >= 0.0 and dist < best_t:
@@ -1040,12 +1123,9 @@ func _tower_at(screen: Vector2):
 
 
 func _stack_world(count: int, factory: bool = false) -> float:
-	var step := _module_step() * (1.22 if factory else 1.0)
-	return step * float(TowerLook.floor_count(count)) + step * 0.94
-
-
-func _module_step() -> float:
-	return 1.01 * MODULE_SCALE
+	if factory:
+		return 0.7 + BAND_H + ROOF_H
+	return (BODY_H + BAND_H) * float(TowerLook.floor_count(count)) + ROOF_H
 
 
 func _ray_box(origin: Vector3, dir: Vector3, center: Vector3, half: Vector3) -> float:
@@ -1129,7 +1209,7 @@ func _to_sim(world: Vector3) -> Vector2:
 
 
 func _fit_camera(force: bool = false) -> void:
-	if _camera == null:
+	if _camera == null or sim == null:
 		return
 	var vp := get_viewport().get_visible_rect().size
 	if vp.x < 10.0:
@@ -1137,17 +1217,90 @@ func _fit_camera(force: bool = false) -> void:
 	if not force and vp.distance_to(_view_size) < 1.0:
 		return
 	_view_size = vp
-	# Fixed portrait framing. 52 degrees off the horizontal, far enough that
-	# the whole meadow, including the tallest tower, sits inside a phone screen.
+	# Keep every tower, its roof label, and the field edges inside the portrait
+	# band under the score pills and above the hint.
+	var margin_x := 56.0
+	var margin_top := 236.0
+	var margin_bottom := 210.0
+	var safe := Rect2(margin_x, margin_top, maxf(vp.x - margin_x * 2.0, 40.0), maxf(vp.y - margin_top - margin_bottom, 40.0))
+	var points := _camera_points()
 	var pitch := deg_to_rad(PITCH_DEG)
-	var dist := 21.0
-	if vp.x > vp.y:
-		dist = 16.0
-	var target := Vector3(0, 0.9, 0.2)
-	_camera.fov = 46.0
+	_camera.fov = 33.0
+	var target := Vector3(0, 0.85, 0.1)
+	var dist := 24.0
+	for _pass in 5:
+		dist = _distance_that_fits(points, target, pitch, safe)
+		_place_camera(target, dist, pitch)
+		var bounds := _projected_bounds(points)
+		if bounds.size.x < 1.0:
+			dist += 4.0
+			continue
+		var shift := safe.get_center() - bounds.get_center()
+		if shift.length() < 8.0 and safe.encloses(bounds):
+			break
+		target = _shift_target(target, dist, shift, vp)
+	_place_camera(target, dist, pitch)
+
+
+func _camera_points() -> Array:
+	var points: Array = []
+	var field := BattleRules.FIELD_SIZE * WORLD_SCALE
+	var pad := 0.35
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			points.append(Vector3(sx * (field.x * 0.5 + pad), 0.0, sz * (field.y * 0.5 + pad)))
+	for entry in sim.towers:
+		var base := _to_world(entry.pos)
+		var top := _stack_world(int(entry.count), str(entry.type) == "tank_factory") + 0.95
+		points.append(base)
+		points.append(base + Vector3(0, top, 0))
+		points.append(base + Vector3(0.85, top * 0.45, 0))
+		points.append(base + Vector3(-0.85, top * 0.45, 0))
+	return points
+
+
+func _distance_that_fits(points: Array, target: Vector3, pitch: float, safe: Rect2) -> float:
+	var lo := 14.0
+	var hi := 78.0
+	var best := hi
+	for _i in 14:
+		var mid := (lo + hi) * 0.5
+		_place_camera(target, mid, pitch)
+		var bounds := _projected_bounds(points)
+		if bounds.size.x > 2.0 and safe.encloses(bounds):
+			best = mid
+			hi = mid
+		else:
+			lo = mid
+	return best
+
+
+func _place_camera(target: Vector3, dist: float, pitch: float) -> void:
 	var eye := target + Vector3(0, sin(pitch), cos(pitch)) * dist
-	# One transform, so the camera cannot keep a flat forward from the old pose.
 	_camera.global_transform = _look_transform(eye, target)
+
+
+func _projected_bounds(points: Array) -> Rect2:
+	var rect := Rect2()
+	var started := false
+	for point in points:
+		var world: Vector3 = point
+		if _camera.is_position_behind(world):
+			return Rect2()
+		var screen := _camera.unproject_position(world)
+		if not started:
+			rect = Rect2(screen, Vector2.ZERO)
+			started = true
+		else:
+			rect = rect.expand(screen)
+	return rect
+
+
+func _shift_target(target: Vector3, dist: float, screen_delta: Vector2, vp: Vector2) -> Vector3:
+	var world_per_px := (2.0 * dist * tan(deg_to_rad(_camera.fov) * 0.5)) / maxf(vp.y, 1.0)
+	var basis := _camera.global_transform.basis
+	# Screen +y is down. Move the aim point so the board slides into the safe band.
+	return target - basis.x * screen_delta.x * world_per_px + basis.y * screen_delta.y * world_per_px
 
 
 func _look_transform(eye: Vector3, target: Vector3) -> Transform3D:
