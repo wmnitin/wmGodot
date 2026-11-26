@@ -211,8 +211,11 @@ func _show_tower(id: String, count: int, file_name: String, focus_y: float) -> v
 	var tower: Node3D = _game._towers[id]
 	_studio = Node3D.new()
 	_studio.name = file_name
-	var focus: Vector3 = tower.global_position + Vector3(0, focus_y, 0)
-	_frame(focus, Vector3(5.4, 3.3, 6.0))
+	var height: float = _game._stack_world(count, id == "n_c")
+	var focus: Vector3 = tower.global_position + Vector3(0, height * 0.42, 0)
+	_frame(focus, Vector3(height * 0.72, height * 0.38, height * 0.95))
+	if focus_y < 0.0:
+		_frame(focus, Vector3(5.4, 3.3, 6.0))
 
 
 func _hide_towers() -> void:

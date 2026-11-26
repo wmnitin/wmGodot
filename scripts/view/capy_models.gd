@@ -19,6 +19,13 @@ const PINE := Color("2EAA55")
 const PINE_TIP := Color("7ED96A")
 
 var _cache := {}
+var _kits: KitLibrary
+
+
+func kits() -> KitLibrary:
+	if _kits == null:
+		_kits = KitLibrary.new()
+	return _kits
 
 
 func chamfer_mesh() -> ArrayMesh:
@@ -170,20 +177,37 @@ func pine_mesh() -> ArrayMesh:
 
 func make_soldier(team: String) -> Node3D:
 	var root := Node3D.new()
-	var body := MeshInstance3D.new()
-	body.mesh = soldier_mesh(team)
-	body.material_override = vertex_material()
-	body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var body := kits().grounded(KitLibrary.CC0 + "capybara.glb")
+	var size: Vector3 = body.get_meta("size")
+	var fit := 0.92 / maxf(maxf(size.x, size.z), 0.001)
+	body.scale = Vector3.ONE * fit
 	root.add_child(body)
+	var worn := Palette.team(team)
+	var helmet := kits().grounded(KitLibrary.QUATERNIUS + "Helmet1.glb")
+	var helm_size: Vector3 = helmet.get_meta("size")
+	helmet.scale = Vector3.ONE * (0.2 / maxf(helm_size.y, 0.001))
+	helmet.position = Vector3(0, size.y * fit * 0.78, size.z * fit * 0.34)
+	kits().tint(helmet, worn, 0.88)
+	root.add_child(helmet)
+	var vest := kits().grounded(KitLibrary.QUATERNIUS + "ShoulderPads.glb")
+	var vest_size: Vector3 = vest.get_meta("size")
+	vest.scale = Vector3.ONE * (0.34 / maxf(vest_size.x, 0.001))
+	vest.position = Vector3(0, size.y * fit * 0.48, size.z * fit * 0.02)
+	kits().tint(vest, worn, 0.9)
+	root.add_child(vest)
 	var sword := Node3D.new()
 	sword.name = "Sword"
-	sword.position = Vector3(0.18, 0.14, 0.28)
-	sword.rotation = Vector3(-0.9, 0.15, -0.35)
-	sword.scale = Vector3(0.42, 0.42, 0.42)
-	var blade := MeshInstance3D.new()
-	blade.mesh = sword_mesh()
-	blade.material_override = vertex_material()
-	blade.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sword.position = Vector3(size.x * fit * 0.42, size.y * fit * 0.22, size.z * fit * 0.28)
+	var blade := kits().grounded(KitLibrary.QUATERNIUS + "Sword.glb")
+	var blade_size: Vector3 = blade.get_meta("size")
+	var long_axis := blade_size.y
+	if blade_size.x >= blade_size.y and blade_size.x >= blade_size.z:
+		blade.rotation_degrees = Vector3(0, 0, 90)
+		long_axis = blade_size.x
+	elif blade_size.z >= blade_size.y:
+		blade.rotation_degrees = Vector3(-90, 0, 0)
+		long_axis = blade_size.z
+	blade.scale = Vector3.ONE * (0.42 / maxf(long_axis, 0.001))
 	sword.add_child(blade)
 	root.add_child(sword)
 	return root
@@ -191,20 +215,36 @@ func make_soldier(team: String) -> Node3D:
 
 func make_tank(team: String) -> Node3D:
 	var root := Node3D.new()
-	var hull := MeshInstance3D.new()
-	hull.mesh = tank_hull_mesh(team)
-	hull.material_override = vertex_material()
-	hull.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(hull)
-	var turret := Node3D.new()
-	turret.name = "Turret"
-	turret.position = Vector3(0, 0.32, 0)
-	var mesh := MeshInstance3D.new()
-	mesh.mesh = tank_turret_mesh(team)
-	mesh.material_override = vertex_material()
-	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	turret.add_child(mesh)
-	root.add_child(turret)
+	var model := kits().spawn(KitLibrary.QUATERNIUS + "Tank.glb")
+	var aim := Vector3.FORWARD
+	var gun := model.find_child("Tank_Gun", true, false) as Node3D
+	var hull := model.find_child("Tank_body", true, false) as Node3D
+	if gun != null and hull != null:
+		aim = _point_in(model, gun) - _point_in(model, hull)
+	_rig_tank_turret(model)
+	aim.y = 0.0
+	if aim.length_squared() > 0.0001:
+		model.rotation.y = -atan2(aim.x, aim.z)
+	var paint := Palette.team(team)
+	for part_name in ["Tank_body", "Tank_Turret", "Tank_Gun"]:
+		var part := model.find_child(part_name, true, false)
+		if part != null:
+			kits().tint(part, paint, 0.72)
+	root.add_child(model)
+	var box := _tree_bounds(model)
+	var length := maxf(box.size.x, box.size.z)
+	var fit := 1.45 / maxf(length, 0.001)
+	model.scale = Vector3.ONE * fit
+	model.position = Vector3(-box.get_center().x, -box.position.y, -box.get_center().z) * fit
+	var player := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if player != null:
+		var clip := ""
+		for anim_name in player.get_animation_list():
+			if "Forward" in str(anim_name):
+				clip = str(anim_name)
+				break
+		if clip != "":
+			player.play(clip)
 	for i in 2:
 		var puff := MeshInstance3D.new()
 		puff.name = "Exhaust%d" % i
@@ -223,6 +263,43 @@ func make_tank(team: String) -> Node3D:
 		puff.visible = false
 		root.add_child(puff)
 	return root
+
+
+func _rig_tank_turret(model: Node3D) -> void:
+	var turret_mesh := model.find_child("Tank_Turret", true, false) as Node3D
+	var pivot := Node3D.new()
+	pivot.name = "Turret"
+	if turret_mesh == null:
+		model.add_child(pivot)
+		return
+	var parent := turret_mesh.get_parent()
+	parent.add_child(pivot)
+	var pivot_xf := Transform3D(Basis.IDENTITY, turret_mesh.position)
+	pivot.transform = pivot_xf
+	_keep_under(turret_mesh, pivot, pivot_xf)
+	var gun := model.find_child("Tank_Gun", true, false) as Node3D
+	if gun != null and gun.get_parent() == parent:
+		_keep_under(gun, pivot, pivot_xf)
+
+
+func _keep_under(node: Node3D, pivot: Node3D, pivot_xf: Transform3D) -> void:
+	var old := node.transform
+	node.get_parent().remove_child(node)
+	pivot.add_child(node)
+	node.transform = pivot_xf.affine_inverse() * old
+
+
+func _tree_bounds(node: Node3D) -> AABB:
+	return kits()._bounds(node, Transform3D.IDENTITY)
+
+
+func _point_in(root: Node3D, node: Node3D) -> Vector3:
+	var xf := Transform3D.IDENTITY
+	var cursor: Node = node
+	while cursor is Node3D and cursor != root:
+		xf = (cursor as Node3D).transform * xf
+		cursor = cursor.get_parent()
+	return xf.origin
 
 
 func _emit_chamfer(tool: SurfaceTool, center: Vector3, size: Vector3, bevel: float, color: Color) -> void:
