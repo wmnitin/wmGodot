@@ -1,0 +1,16 @@
+{
+  "id": "mirror_meadow",
+  "name": "Mirror Meadow",
+  "blurb": "Drag a blue tower onto another tower. Swipe your own line to cut it.",
+  "towers": [
+    {"id": "e_w", "type": "outpost", "x": 0.28, "y": 0.13, "owner": "enemy", "count": 12},
+    {"id": "e_e", "type": "outpost", "x": 0.72, "y": 0.13, "owner": "enemy", "count": 12},
+    {"id": "n_c", "type": "outpost", "x": 0.50, "y": 0.38, "owner": "neutral", "count": 8},
+    {"id": "n_w", "type": "outpost", "x": 0.16, "y": 0.56, "owner": "neutral", "count": 4},
+    {"id": "n_e", "type": "outpost", "x": 0.84, "y": 0.56, "owner": "neutral", "count": 4},
+    {"id": "p_w", "type": "outpost", "x": 0.28, "y": 0.80, "owner": "player", "count": 16},
+    {"id": "p_e", "type": "outpost", "x": 0.72, "y": 0.80, "owner": "player", "count": 16}
+  ],
+  "blockades": [],
+  "hazards": []
+}
