@@ -31,6 +31,8 @@ func act(sim: MatchSim) -> void:
 				if not bool(sim.spec_of(target).can_be_targeted):
 					continue
 				var score := _connect_score(sim, tower, target)
+				if not _worth_reversing(sim, tower, target, score):
+					continue
 				if score > best_score:
 					best_score = score
 					best = {"op": "connect", "source": str(tower.id), "target": str(target.id)}
@@ -50,6 +52,8 @@ func act(sim: MatchSim) -> void:
 					if not bool(sim.spec_of(target).can_be_targeted):
 						continue
 					var score := _connect_score(sim, tower, target)
+					if not _worth_reversing(sim, tower, target, score):
+						continue
 					if score > worst_score + 0.35 and score > best_score:
 						best_score = score
 						best = {
@@ -67,6 +71,18 @@ func act(sim: MatchSim) -> void:
 	elif str(best.op) == "replace":
 		sim.try_cut(int(best.cut))
 		sim.try_connect(str(best.source), str(best.target))
+
+
+## Don't flip a support link back and forth every reaction. A reverse still
+## goes through try_connect, which keeps one direction and lets in-flight
+## soldiers finish as support.
+func _worth_reversing(sim: MatchSim, source: Dictionary, target: Dictionary, new_score: float) -> bool:
+	if str(target.owner) != str(source.owner):
+		return true
+	if not sim.has_link(str(target.id), str(source.id)):
+		return true
+	var current_flow := _connect_score(sim, target, source)
+	return new_score >= current_flow + 0.3
 
 
 func _connect_score(sim: MatchSim, source: Dictionary, target: Dictionary) -> float:

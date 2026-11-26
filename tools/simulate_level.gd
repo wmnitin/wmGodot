@@ -33,6 +33,12 @@ func _rules() -> int:
 	failed += _check("a full tower forwards friendly soldiers along its links", _passthrough())
 	failed += _check("a full tower with nowhere to send absorbs the soldier", _passthrough_stuck())
 	failed += _check("opposing soldiers on one path cancel one for one", _cancel())
+	failed += _check("a reverse drag between your towers flips the link and in-flight soldiers still reinforce", _own_reverse())
+	failed += _check("same-owner soldiers passing each other do not cancel", _own_streams_pass())
+	failed += _check("enemy towers also keep only one direction between themselves", _enemy_reverse())
+	failed += _check("a reverse drag at the link cap does not delete the old link", _reverse_respects_cap())
+	failed += _check("a tower at 60 is full and one at 59 is not", _max_state())
+	failed += _check("a seed lobber's extra damage does not garrison the flipped tower", _artillery_volley())
 	failed += _check("a blockade circle rejects a crossing link", _blockade_circle())
 	failed += _check("a bramble tower blocks the path across it", _blockade_tower())
 	failed += _check("a mud hazard removes soldiers that enter it", _hazard())
@@ -365,3 +371,130 @@ func _endings() -> bool:
 	loss.spawn_soldier("b", "a", "enemy", 0.99)
 	_step(loss, 0.1)
 	return loss.state == "defeat"
+
+
+func _anchor_pair(owner_a: String, count_a: int, owner_b: String, count_b: int) -> MatchSim:
+	var keeper := "enemy" if owner_a == "player" else "player"
+	return _fresh([
+		{"id": "a", "type": "outpost", "x": 0.2, "y": 0.55, "owner": owner_a, "count": count_a},
+		{"id": "b", "type": "outpost", "x": 0.8, "y": 0.55, "owner": owner_b, "count": count_b},
+		{"id": "keep", "type": "outpost", "x": 0.5, "y": 0.12, "owner": keeper, "count": 30},
+	])
+
+
+func _flying_to(sim: MatchSim, target_id: String, team: String) -> int:
+	var total := 0
+	for soldier in sim.soldiers:
+		if bool(soldier.dead):
+			continue
+		if str(soldier.target_id) == target_id and str(soldier.team) == team:
+			total += 1
+	return total
+
+
+func _own_reverse() -> bool:
+	var sim := _anchor_pair("player", 20, "player", 12)
+	if not bool(sim.try_connect("a", "b").ok):
+		return false
+	_step(sim, 0.45)
+	var flying := _flying_to(sim, "b", "player")
+	if flying < 1:
+		return false
+	var before := int(sim.tower("b").count)
+	var flipped: Dictionary = sim.try_connect("b", "a")
+	if not bool(flipped.ok):
+		return false
+	if sim.has_link("a", "b") or not sim.has_link("b", "a"):
+		return false
+	if _flying_to(sim, "b", "player") < 1:
+		return false
+	var cancelled := int(sim.stats.cancelled)
+	_step(sim, 3.0)
+	if int(sim.stats.cancelled) != cancelled:
+		return false
+	# B is sending, so it does not grow. Only the soldiers already on A->B arrive.
+	return int(sim.tower("b").count) == before + flying
+
+
+func _own_streams_pass() -> bool:
+	var sim := _anchor_pair("player", 15, "player", 15)
+	sim.spawn_soldier("a", "b", "player", 0.42)
+	sim.spawn_soldier("b", "a", "player", 0.42)
+	var before_a := int(sim.tower("a").count)
+	var before_b := int(sim.tower("b").count)
+	_step(sim, 0.35)
+	var alive := 0
+	for soldier in sim.soldiers:
+		if not bool(soldier.dead):
+			alive += 1
+	if alive < 2 or int(sim.stats.cancelled) != 0:
+		return false
+	_step(sim, 2.4)
+	# One growth tick plus one reinforcing arrival on each tower. A cancel would skip the arrival.
+	return int(sim.stats.cancelled) == 0 and int(sim.tower("a").count) == before_a + 2 and int(sim.tower("b").count) == before_b + 2
+
+
+func _enemy_reverse() -> bool:
+	var sim := _anchor_pair("enemy", 18, "enemy", 11)
+	if not bool(sim.try_connect("a", "b").ok):
+		return false
+	_step(sim, 0.4)
+	var flying := _flying_to(sim, "b", "enemy")
+	var before := int(sim.tower("b").count)
+	if not bool(sim.try_connect("b", "a").ok):
+		return false
+	if sim.has_link("a", "b") or not sim.has_link("b", "a"):
+		return false
+	var cancelled := int(sim.stats.cancelled)
+	_step(sim, 3.0)
+	return int(sim.stats.cancelled) == cancelled and int(sim.tower("b").count) == before + flying
+
+
+func _reverse_respects_cap() -> bool:
+	var sim := _fresh([
+		{"id": "a", "type": "outpost", "x": 0.2, "y": 0.4, "owner": "player", "count": 20},
+		{"id": "b", "type": "outpost", "x": 0.5, "y": 0.7, "owner": "player", "count": 8},
+		{"id": "c", "type": "outpost", "x": 0.85, "y": 0.45, "owner": "neutral", "count": 4},
+		{"id": "e", "type": "outpost", "x": 0.5, "y": 0.12, "owner": "enemy", "count": 20},
+	])
+	if not bool(sim.try_connect("a", "b").ok):
+		return false
+	if not bool(sim.try_connect("b", "c").ok):
+		return false
+	var flipped: Dictionary = sim.try_connect("b", "a")
+	return not bool(flipped.ok) and str(flipped.reason) == "link_cap" and sim.has_link("a", "b") and not sim.has_link("b", "a")
+
+
+func _max_state() -> bool:
+	var sim := MatchSim.new()
+	if not sim.load_level(BattleRules.LEVEL_PATH):
+		return false
+	sim.ai_enabled = false
+	if sim.is_full(sim.tower("p_w")):
+		return false
+	sim.force_count("p_w", 59)
+	if sim.is_full(sim.tower("p_w")):
+		return false
+	sim.force_count("p_w", 60)
+	if not sim.is_full(sim.tower("p_w")):
+		return false
+	# A friendly arrival at 60 passes through and the tower stays full.
+	sim.try_connect("p_e", "e_w")
+	sim.spawn_soldier("p_e", "p_w", "player", 0.99)
+	_step(sim, 0.1)
+	return int(sim.tower("p_w").count) == 60 and sim.is_full(sim.tower("p_w"))
+
+
+func _artillery_volley() -> bool:
+	var sim := _fresh([
+		{"id": "gun", "type": "artillery", "x": 0.30, "y": 0.5, "owner": "enemy", "count": 6},
+		{"id": "p", "type": "outpost", "x": 0.55, "y": 0.5, "owner": "player", "count": 1},
+		{"id": "keep", "type": "outpost", "x": 0.15, "y": 0.85, "owner": "player", "count": 12},
+	])
+	# An outgoing link stops growth, so the tower is still at 1 when the 2-damage shot lands.
+	if not bool(sim.try_connect("p", "keep").ok):
+		return false
+	_step(sim, 3.8)
+	if int(sim.stats.shots) < 1:
+		return false
+	return str(sim.tower("p").owner) == "enemy" and int(sim.tower("p").count) == 0

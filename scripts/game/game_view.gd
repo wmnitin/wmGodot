@@ -3,7 +3,7 @@ extends Node2D
 signal match_finished(victory: bool)
 signal restart_requested
 
-const HIT_RADIUS := 112.0
+const HIT_RADIUS := 156.0
 const DISC_SCALE := BattleRules.TOWER_RADIUS / ArtLibrary.DISC_TEX_RADIUS
 
 var sim: MatchSim
@@ -36,6 +36,8 @@ var _end_delay := 0.0
 var _link_root: Node2D
 var _soldier_root: Node2D
 var _tower_root: Node2D
+var _bg: Sprite2D
+var _field_scale := 1.0
 
 
 func _ready() -> void:
@@ -57,23 +59,24 @@ func _layout() -> void:
 	var vp := get_viewport_rect().size
 	if vp.x < 10.0:
 		vp = Vector2(1080, 1920)
-	_origin = Vector2((vp.x - BattleRules.FIELD_SIZE.x) * 0.5, 250)
+	var top := 230.0
+	var bottom_margin := 150.0
+	var avail_w := maxf(320.0, vp.x - 36.0)
+	var avail_h := maxf(480.0, vp.y - top - bottom_margin)
+	var field := BattleRules.FIELD_SIZE
+	_field_scale = minf(avail_w / field.x, avail_h / field.y)
+	var scaled := field * _field_scale
+	_origin = Vector2((vp.x - scaled.x) * 0.5, top + maxf(0.0, (avail_h - scaled.y) * 0.5))
+	_fit_background(vp)
 
 
 func _build_static() -> void:
-	var bg := Sprite2D.new()
-	bg.texture = ArtLibrary.texture(ArtLibrary.BACKGROUND)
-	bg.centered = false
-	bg.z_index = -10
-	if bg.texture:
-		var vp := get_viewport_rect().size
-		if vp.x < 10.0:
-			vp = Vector2(1080, 1920)
-		var tex_size := bg.texture.get_size()
-		var cover := maxf(vp.x / tex_size.x, vp.y / tex_size.y)
-		bg.scale = Vector2(cover, cover)
-		bg.position = (vp - tex_size * cover) * 0.5
-	add_child(bg)
+	_bg = Sprite2D.new()
+	_bg.texture = ArtLibrary.texture(ArtLibrary.BACKGROUND)
+	_bg.centered = false
+	_bg.z_index = -10
+	add_child(_bg)
+	_fit_background(get_viewport_rect().size)
 
 	_link_root = Node2D.new()
 	_link_root.z_index = 1
@@ -89,6 +92,8 @@ func _build_static() -> void:
 	_preview_core = _make_line(Color(1, 1, 1, 0.95), 8)
 	_preview_edge.visible = false
 	_preview_core.visible = false
+	_preview_edge.z_index = 6
+	_preview_core.z_index = 6
 	add_child(_preview_edge)
 	add_child(_preview_core)
 
@@ -239,6 +244,27 @@ func _make_tower(entry: Dictionary) -> Node2D:
 	UiKit.outlined(count, Palette.CREAM, Palette.INK, 58)
 	node.add_child(count)
 
+	var badge := Control.new()
+	badge.name = "MaxBadge"
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.position = Vector2(-54, 42)
+	badge.size = Vector2(108, 36)
+	badge.visible = false
+	var plate := ColorRect.new()
+	plate.color = Palette.GOLD
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plate.position = Vector2.ZERO
+	plate.size = Vector2(108, 36)
+	badge.add_child(plate)
+	var badge_text := Label.new()
+	badge_text.text = "MAX"
+	badge_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge_text.position = Vector2(0, -2)
+	badge_text.size = Vector2(108, 36)
+	UiKit.outlined(badge_text, Color("1A1206"), Palette.INK, 24)
+	badge.add_child(badge_text)
+	node.add_child(badge)
+
 	var pips := Node2D.new()
 	pips.name = "Pips"
 	node.add_child(pips)
@@ -276,6 +302,7 @@ func _process(delta: float) -> void:
 
 
 func _sync(delta: float) -> void:
+	_layout()
 	_you_label.text = "You  %d" % sim.victory_count("player")
 	_red_label.text = "Red  %d" % sim.victory_count("enemy")
 	_sync_towers(delta)
@@ -289,6 +316,7 @@ func _sync_towers(delta: float) -> void:
 		var node: Node2D = _towers.get(id)
 		if node == null:
 			continue
+		node.position = _to_screen(entry.pos)
 		var level := sim.level_of(int(entry.count))
 		var level_scale := 0.94
 		if level == 2:
@@ -320,18 +348,22 @@ func _sync_towers(delta: float) -> void:
 		count.visible = show_count
 		count.text = str(int(entry.count))
 		count.scale = Vector2.ONE * float(_punch[id])
+		var full := show_count and sim.is_full(entry)
+		var badge: Control = node.get_node("MaxBadge")
+		badge.visible = full
 		var used := sim.outgoing(id).size()
+		var gap := 32.0
+		var start := -float(maxi(level - 1, 0)) * gap * 0.5
 		for i in 3:
 			var pip: Sprite2D = node.get_node("Pips/Pip%d" % i)
 			pip.visible = show_count and i < level
+			pip.position = Vector2(start + float(i) * gap, 108 if full else 100)
 			if i < used:
 				pip.modulate = Palette.GOLD
 			else:
 				pip.modulate = Color(1, 1, 1, 0.55)
-		if id == _source_id and _mode == "link":
-			node.scale = Vector2.ONE * 1.06
-		else:
-			node.scale = Vector2.ONE
+		var grab := 1.06 if id == _source_id and _mode == "link" else 1.0
+		node.scale = Vector2.ONE * _field_scale * grab
 
 
 func _sync_links() -> void:
@@ -352,8 +384,12 @@ func _sync_links() -> void:
 			_links[id] = node
 		var ends := sim.path_ends(str(link.source_id), str(link.target_id))
 		var points := PackedVector2Array([_to_screen(ends[0]), _to_screen(ends[1])])
-		node.get_node("Edge").points = points
-		node.get_node("Core").points = points
+		var edge: Line2D = node.get_node("Edge")
+		var core: Line2D = node.get_node("Core")
+		edge.points = points
+		core.points = points
+		edge.width = 26.0 * _field_scale
+		core.width = 10.0 * _field_scale
 	var stale: Array = []
 	for id in _links.keys():
 		if not live.has(id):
@@ -387,12 +423,12 @@ func _sync_soldiers() -> void:
 			side = side.normalized()
 		else:
 			side = Vector2.UP
-		var bob := sin(sim.elapsed * 8.0 + float(id)) * 5.0
+		var bob := sin(sim.elapsed * 8.0 + float(id)) * 5.0 * _field_scale
 		sprite.position = along + side * bob
 		if dir.length_squared() > 1.0:
 			sprite.rotation = dir.angle()
 		var wiggle := 0.9 + 0.1 * absf(sin(sim.elapsed * 10.0 + float(id)))
-		sprite.scale = Vector2(0.42 * wiggle, 0.42 / wiggle)
+		sprite.scale = Vector2(0.42 * wiggle, 0.42 / wiggle) * _field_scale
 	var stale: Array = []
 	for id in _soldiers.keys():
 		if not live.has(id):
@@ -470,6 +506,9 @@ func _show_preview(screen: Vector2) -> void:
 	var color := Palette.PLAYER if valid else Color(0.75, 0.78, 0.84)
 	_preview_edge.default_color = color
 	_preview_core.default_color = Color(1, 1, 1, 0.9)
+	_preview_edge.width = 22.0 * _field_scale
+	_preview_core.width = 8.0 * _field_scale
+	_hover_ring.scale = Vector2.ONE * DISC_SCALE * 1.18 * _field_scale
 	_preview_edge.points = PackedVector2Array([from, screen])
 	_preview_core.points = PackedVector2Array([from, screen])
 	_preview_edge.visible = true
@@ -530,11 +569,21 @@ func _tower_at(screen: Vector2):
 
 
 func _to_screen(world: Vector2) -> Vector2:
-	return _origin + world
+	return _origin + world * _field_scale
 
 
 func _to_world(screen: Vector2) -> Vector2:
-	return screen - _origin
+	var scale := _field_scale if _field_scale > 0.001 else 1.0
+	return (screen - _origin) / scale
+
+
+func _fit_background(vp: Vector2) -> void:
+	if _bg == null or _bg.texture == null or vp.x < 10.0:
+		return
+	var tex_size := _bg.texture.get_size()
+	var cover := maxf(vp.x / tex_size.x, vp.y / tex_size.y)
+	_bg.scale = Vector2(cover, cover)
+	_bg.position = (vp - tex_size * cover) * 0.5
 
 
 func _make_line(color: Color, width: float) -> Line2D:

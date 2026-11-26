@@ -9,7 +9,10 @@ class_name MatchSim
 ## - Neutrals do not grow and do not start links.
 ## - A lethal hit sets the count to 0 and flips the owner. That soldier is spent.
 ## - At exactly max count, a friendly arrival is forwarded round-robin instead of added.
-## - Opposing soldiers on the same undirected path cancel one for one.
+## - Opposing owners' soldiers on the same path cancel one for one.
+## - Two towers of the same owner can be linked in only one direction. A new
+##   link the other way removes the old link. Soldiers already on the old
+##   link keep walking and reinforce the destination.
 ## - Dropping a level removes the newest outgoing links first.
 
 const _Catalog = preload("res://scripts/sim/tower_catalog.gd")
@@ -155,6 +158,13 @@ func try_connect(source_id: String, target_id: String) -> Dictionary:
 		return _fail("blocked")
 	if outgoing(source_id).size() >= link_cap(source):
 		return _fail("link_cap")
+	# One direction only between two towers of the same owner. Flipping the
+	# link does not spend the source's cap (the old link belonged to the other tower).
+	# Soldiers already walking the old way are released, not deleted.
+	if str(source.owner) == str(target.owner):
+		var reverse := link_between(target_id, source_id)
+		if not reverse.is_empty():
+			_release_link(int(reverse.id))
 	var link := {
 		"id": _alloc_id(),
 		"source_id": source_id,
@@ -219,10 +229,20 @@ func outgoing(source_id: String) -> Array:
 
 
 func has_link(source_id: String, target_id: String) -> bool:
+	return not link_between(source_id, target_id).is_empty()
+
+
+func link_between(source_id: String, target_id: String) -> Dictionary:
 	for link in links:
 		if str(link.source_id) == source_id and str(link.target_id) == target_id:
-			return true
-	return false
+			return link
+	return {}
+
+
+func is_full(entry: Dictionary) -> bool:
+	if entry.is_empty():
+		return false
+	return int(entry.count) >= int(spec_of(entry).max_count)
 
 
 func level_of(count: int) -> int:
@@ -324,6 +344,24 @@ func apply_hit(target_id: String, attacker: String) -> void:
 	if not bool(spec.can_be_captured):
 		return
 	entry.count = int(entry.count) - 1
+	if int(entry.count) <= 0:
+		_capture(entry, attacker)
+	else:
+		_on_count_changed(entry)
+
+
+## Several points of damage from one shot. Leftover damage does not become
+## a garrison after the tower flips.
+func apply_volley(target_id: String, attacker: String, amount: int) -> void:
+	var entry := tower(target_id)
+	if entry.is_empty() or amount <= 0:
+		return
+	var spec := spec_of(entry)
+	if not bool(spec.can_be_targeted) or not bool(spec.can_be_captured):
+		return
+	if str(entry.owner) == attacker:
+		return
+	entry.count = int(entry.count) - amount
 	if int(entry.count) <= 0:
 		_capture(entry, attacker)
 	else:
@@ -544,6 +582,8 @@ func _cancel_meets() -> void:
 				var tf0 := float(going.prev_progress)
 				var tb0 := 1.0 - float(coming.prev_progress)
 				var crossed := (tf0 - tb0) * (tf - tb) <= 0.0
+				if str(going.team) == str(coming.team):
+					continue
 				var gap := soldier_position(going).distance_to(soldier_position(coming))
 				if crossed or gap <= 36.0:
 					pairs.append({"d": gap, "a": going, "b": coming})
@@ -637,6 +677,18 @@ func _remove_link(link_id: int) -> void:
 	for soldier in soldiers:
 		if int(soldier.link_id) == link_id:
 			soldier.dead = true
+	_drop_link(link_id)
+
+
+## Drop the link but let soldiers already on it finish the walk.
+func _release_link(link_id: int) -> void:
+	for soldier in soldiers:
+		if int(soldier.link_id) == link_id and not bool(soldier.dead):
+			soldier.link_id = -1
+	_drop_link(link_id)
+
+
+func _drop_link(link_id: int) -> void:
 	var kept: Array = []
 	for link in links:
 		if int(link.id) != link_id:

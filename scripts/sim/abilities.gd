@@ -35,6 +35,5 @@ static func _artillery(sim: MatchSim, tower: Dictionary, spec: Dictionary, delta
 	tower.ability_accum = float(tower.ability_accum) - interval
 	if not sim.spend_count(str(tower.id), 1):
 		return
-	for _i in damage:
-		sim.apply_hit(target, owner)
+	sim.apply_volley(target, owner, damage)
 	sim.stats["shots"] = int(sim.stats["shots"]) + 1
