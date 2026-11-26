@@ -84,14 +84,14 @@
       "shape": "circle",
       "x": 0.32,
       "y": 0.3,
-      "radius": 44
+      "radius": 43
     },
     {
       "id": "hedge_c",
       "shape": "circle",
       "x": 0.55,
       "y": 0.28,
-      "radius": 44
+      "radius": 29
     }
   ]
 }

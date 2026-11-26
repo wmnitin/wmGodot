@@ -4,12 +4,17 @@ signal match_finished(victory: bool)
 signal restart_requested
 
 ## Sim space stays in pixels. The view maps that onto a small 3D meadow.
-const WORLD_SCALE := 0.012
+const WORLD_SCALE := BattleRules.WORLD_SCALE
 const PITCH_DEG := 68.0
-const BODY_H := 0.92
-const BAND_H := 0.16
-const ROOF_H := 0.28
-const TOWER_W := 2.15
+## About 65% of the previous bunkers, so grass shows between them.
+const BODY_H := 0.60
+const BAND_H := 0.10
+const ROOF_H := 0.18
+const TOWER_W := 1.40
+const FACTORY_W := 1.76
+const FACTORY_H := 0.46
+## One ribbon width for every link and both teams. Soldiers are what move.
+const LINK_WIDTH := 0.38
 
 var sim: MatchSim
 var _models := CapyModels.new()
@@ -98,7 +103,7 @@ func _build_world() -> void:
 	add_child(world_env)
 
 	var sun := DirectionalLight3D.new()
-	sun.look_at(Vector3(0.7, -1.15, 0.55), Vector3.UP)
+	sun.look_at_from_position(Vector3.ZERO, Vector3(0.7, -1.15, 0.55), Vector3.UP)
 	sun.light_color = Color("FFE0A8")
 	sun.light_energy = 1.45
 	sun.shadow_enabled = true
@@ -159,7 +164,7 @@ func _build_world() -> void:
 	_hover_ring = MeshInstance3D.new()
 	_hover_ring.mesh = _models.chamfer_mesh()
 	_hover_ring.material_override = _solid(Palette.GOLD, 0.45)
-	_hover_ring.scale = Vector3(1.7, 0.08, 1.7)
+	_hover_ring.scale = Vector3(1.1, 0.06, 1.1)
 	_hover_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_hover_ring.visible = false
 	add_child(_hover_ring)
@@ -229,34 +234,29 @@ func _add_grass(_field: Vector2) -> void:
 	pass
 
 
-func _add_decor(field: Vector2) -> void:
-	var edge := field.y * 0.5 + 0.2
-	_place_prop(KitLibrary.BLASTER + "crate-small.glb", Vector3(-2.2, 0, -edge), 0.42, 0.4)
-	_place_prop(KitLibrary.SURVIVAL + "barrel.glb", Vector3(1.5, 0, -edge - 0.1), 0.38, 0.2)
-	_place_prop(KitLibrary.NATURE + "rock_largeA.glb", Vector3(2.7, 0, -edge + 0.05), 0.42, 0.6)
-	_place_prop(KitLibrary.NATURE + "log.glb", Vector3(-0.15, 0, -edge + 0.15), 0.28, 0.5)
-	_place_prop(KitLibrary.CAR + "debris-tire.glb", Vector3(-3.1, 0, edge), 0.36, 0.3)
-	_place_prop(KitLibrary.SURVIVAL + "rock-b.glb", Vector3(-1.2, 0, edge + 0.05), 0.34, 1.1)
-	_place_prop(KitLibrary.BLASTER + "crate-medium.glb", Vector3(1.9, 0, edge), 0.4, -0.4)
-	_place_prop(KitLibrary.SURVIVAL + "barrel.glb", Vector3(3.2, 0, edge - 0.08), 0.36, 0.8)
-	_place_prop(KitLibrary.SURVIVAL + "tree-log.glb", Vector3(0.35, 0, edge + 0.12), 0.26, 1.4)
-	for i in 7:
-		var z := lerpf(-field.y * 0.42, field.y * 0.42, float(i) / 6.0)
-		_plant_pine(Vector3(-field.x * 0.5, 0, z), 0.62 + float(i % 3) * 0.06)
-		_plant_pine(Vector3(field.x * 0.5, 0, z + 0.35), 0.58 + float((i + 1) % 3) * 0.07)
+func _add_decor(_field: Vector2) -> void:
+	for prop in FieldDressing.decor_props(sim):
+		var at := _to_world(prop.pos)
+		if str(prop.kind) == "pine":
+			_plant_pine(at, float(prop.scale))
+		else:
+			_place_prop(str(prop.mesh), at, float(prop.height), float(prop.yaw))
 
 
 func _add_hedges() -> void:
 	for obstacle in sim.obstacles:
-		if str(obstacle.get("shape", "")) != "circle":
-			continue
-		var center := _to_world(obstacle.pos)
-		for i in 5:
-			var along := float(i) - 2.0
-			_plant_pine(center + Vector3(along * 0.38, 0, sin(along) * 0.08), 0.48 + float(i % 2) * 0.08)
+		var body := MeshInstance3D.new()
+		body.mesh = _hedge_mesh(obstacle)
+		body.material_override = _solid(Color("2E7D32"), 0.92)
+		body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		body.position = _to_world(obstacle.pos) + Vector3(0, 0.04 + FieldDressing.HEDGE_H * 0.5, 0)
+		add_child(body)
+		for pine in FieldDressing.hedge_pines(obstacle):
+			var tree := _plant_pine(_to_world(pine.pos), float(pine.scale))
+			tree.rotation.y = float(pine.pos.x) * 0.17
 
 
-func _plant_pine(at: Vector3, scale: float) -> void:
+func _plant_pine(at: Vector3, scale: float) -> MeshInstance3D:
 	var pine := MeshInstance3D.new()
 	pine.mesh = _models.pine_mesh()
 	pine.material_override = _models.vertex_material()
@@ -264,6 +264,70 @@ func _plant_pine(at: Vector3, scale: float) -> void:
 	pine.scale = Vector3.ONE * scale
 	pine.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	add_child(pine)
+	return pine
+
+
+func _hedge_mesh(obstacle: Dictionary) -> Mesh:
+	var shape := str(obstacle.get("shape", "circle"))
+	var height := FieldDressing.HEDGE_H
+	if shape == "rect":
+		var half: Vector2 = obstacle.half
+		var box := BoxMesh.new()
+		box.size = Vector3(half.x * 2.0 * WORLD_SCALE, height, half.y * 2.0 * WORLD_SCALE)
+		return box
+	if shape == "polygon":
+		return _hedge_prism(obstacle, height)
+	var cyl := CylinderMesh.new()
+	var radius := FieldDressing.hedge_radius_m(obstacle)
+	cyl.top_radius = radius
+	cyl.bottom_radius = radius
+	cyl.height = height
+	cyl.radial_segments = 20
+	return cyl
+
+
+func _hedge_prism(obstacle: Dictionary, height: float) -> ArrayMesh:
+	var points: PackedVector2Array = obstacle.points
+	var origin: Vector2 = obstacle.pos
+	var tool := SurfaceTool.new()
+	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var top := height * 0.5
+	var bottom := -height * 0.5
+	var count := points.size()
+	if count < 3:
+		return tool.commit()
+	var local: Array[Vector2] = []
+	for point in points:
+		local.append(Vector2((point.x - origin.x) * WORLD_SCALE, (point.y - origin.y) * WORLD_SCALE))
+	var color := Color("2E7D32")
+	for i in range(1, count - 1):
+		_hedge_tri(tool, local[0], local[i], local[i + 1], top, color)
+		_hedge_tri(tool, local[0], local[i + 1], local[i], bottom, color)
+	for i in count:
+		var a: Vector2 = local[i]
+		var b: Vector2 = local[(i + 1) % count]
+		_hedge_wall(tool, a, b, bottom, top, color)
+	tool.generate_normals()
+	return tool.commit()
+
+
+func _hedge_tri(tool: SurfaceTool, a: Vector2, b: Vector2, c: Vector2, y: float, color: Color) -> void:
+	tool.set_color(color)
+	tool.add_vertex(Vector3(a.x, y, a.y))
+	tool.set_color(color)
+	tool.add_vertex(Vector3(b.x, y, b.y))
+	tool.set_color(color)
+	tool.add_vertex(Vector3(c.x, y, c.y))
+
+
+func _hedge_wall(tool: SurfaceTool, a: Vector2, b: Vector2, bottom: float, top: float, color: Color) -> void:
+	var a0 := Vector3(a.x, bottom, a.y)
+	var b0 := Vector3(b.x, bottom, b.y)
+	var a1 := Vector3(a.x, top, a.y)
+	var b1 := Vector3(b.x, top, b.y)
+	for vertex in [a0, b0, a1, a1, b0, b1]:
+		tool.set_color(color)
+		tool.add_vertex(vertex)
 
 
 func _place_prop(path: String, at: Vector3, height: float, yaw: float) -> void:
@@ -485,7 +549,7 @@ func _make_tower(entry: Dictionary) -> Node3D:
 	node.set_meta("team_color", Palette.team(team))
 	node.set_meta("flash", 0.0)
 	node.position = _to_world(entry.pos)
-	node.add_child(_make_blob_node(2.4 if factory else 1.7))
+	node.add_child(_make_blob_node(1.56 if factory else 1.1))
 	var paints: Array = []
 	var stories := 1 if factory else 3
 	for i in stories:
@@ -495,8 +559,8 @@ func _make_tower(entry: Dictionary) -> Node3D:
 	var top_w := _floor_span(stories - 1, factory)
 	var roof := Node3D.new()
 	roof.name = "Roof"
-	var lip_w := top_w + 0.22
-	var cap_w := top_w + 0.1
+	var lip_w := top_w + 0.14
+	var cap_w := top_w + 0.06
 	var lip := _bunker_part(_bunkers.cap(Vector3(lip_w, 0.08, lip_w * (0.78 if factory else 1.0))), _bunkers.team_material(Palette.team(team)))
 	lip.position = Vector3(0, 0.04, 0)
 	paints.append(lip.material_override)
@@ -517,7 +581,7 @@ func _make_tower(entry: Dictionary) -> Node3D:
 	flag.add_child(cloth)
 	node.add_child(flag)
 	if factory:
-		var chimney := _bunker_part(_bunkers.chimney(Vector3(0.34, 1.15, 0.34)), _bunkers.flat_material(Bunkers.CHIMNEY))
+		var chimney := _bunker_part(_bunkers.chimney(Vector3(0.22, 0.75, 0.22)), _bunkers.flat_material(Bunkers.CHIMNEY))
 		chimney.name = "Chimney"
 		node.add_child(chimney)
 		for s in 3:
@@ -564,26 +628,26 @@ func _make_floor(index: int, factory: bool, paints: Array) -> Node3D:
 	var floor := Node3D.new()
 	var span := _floor_span(index, factory)
 	var depth := span * (0.74 if factory else 1.0)
-	var body_h := 0.7 if factory else BODY_H
+	var body_h := FACTORY_H if factory else BODY_H
 	var body_mat := _bunkers.team_material(Color.WHITE)
 	paints.append(body_mat)
-	var body := _bunker_part(_bunkers.body(Vector3(span, body_h, depth), 0.2 if not factory else 0.24), body_mat)
+	var body := _bunker_part(_bunkers.body(Vector3(span, body_h, depth), 0.13 if not factory else 0.16), body_mat)
 	body.position = Vector3(0, body_h * 0.5, 0)
 	floor.add_child(body)
-	var band := _bunker_part(_bunkers.band(Vector3(span + 0.12, BAND_H, depth + 0.12)), _bunkers.flat_material(Bunkers.BAND))
+	var band := _bunker_part(_bunkers.band(Vector3(span + 0.08, BAND_H, depth + 0.08)), _bunkers.flat_material(Bunkers.BAND))
 	band.position = Vector3(0, body_h + BAND_H * 0.5, 0)
 	floor.add_child(band)
 	var slit_w := span * 0.62
-	var frame := _bunker_part(_bunkers.slit(Vector3(slit_w + 0.1, 0.22, 0.08)), _bunkers.flat_material(Bunkers.FRAME))
+	var frame := _bunker_part(_bunkers.slit(Vector3(slit_w + 0.06, 0.14, 0.06)), _bunkers.flat_material(Bunkers.FRAME))
 	frame.position = Vector3(0, body_h * 0.58, depth * 0.5 + 0.02)
 	floor.add_child(frame)
-	var slit := _bunker_part(_bunkers.slit(Vector3(slit_w, 0.14, 0.07)), _bunkers.flat_material(Bunkers.SLIT))
+	var slit := _bunker_part(_bunkers.slit(Vector3(slit_w, 0.09, 0.05)), _bunkers.flat_material(Bunkers.SLIT))
 	slit.position = Vector3(0, body_h * 0.58, depth * 0.5 + 0.05)
 	floor.add_child(slit)
 	if index == 0:
-		var door_w := 0.62 if factory else 0.46
-		var door_h := 0.55 if factory else 0.5
-		var door_frame := _bunker_part(_bunkers.door(Vector3(door_w + 0.14, door_h + 0.1, 0.1)), _bunkers.flat_material(Bunkers.FRAME))
+		var door_w := 0.40 if factory else 0.30
+		var door_h := 0.36 if factory else 0.32
+		var door_frame := _bunker_part(_bunkers.door(Vector3(door_w + 0.08, door_h + 0.06, 0.08)), _bunkers.flat_material(Bunkers.FRAME))
 		door_frame.position = Vector3(0, door_h * 0.46, depth * 0.5 + 0.02)
 		floor.add_child(door_frame)
 		var door := _bunker_part(_bunkers.door(Vector3(door_w, door_h, 0.08)), _bunkers.flat_material(Bunkers.SLIT))
@@ -596,7 +660,7 @@ func _make_floor(index: int, factory: bool, paints: Array) -> Node3D:
 
 func _floor_span(index: int, factory: bool) -> float:
 	if factory:
-		return 2.7
+		return FACTORY_W
 	return TOWER_W * (1.0 - 0.045 * float(index))
 
 
@@ -740,22 +804,22 @@ func _layout_tower(node: Node3D, entry: Dictionary, delta: float) -> void:
 	if factory:
 		var chimney := node.get_node_or_null("Chimney") as Node3D
 		if chimney != null:
-			chimney.position = Vector3(wide * 0.62, cursor + ROOF_H + 0.52, -wide * 0.2)
+			chimney.position = Vector3(wide * 0.62, cursor + ROOF_H + 0.34, -wide * 0.2)
 			for s in 3:
 				var puff: MeshInstance3D = node.get_node("Smoke%d" % s)
 				var rise := fmod(sim.elapsed * 0.35 + float(s) * 0.33, 1.0)
-				puff.position = chimney.position + Vector3(0, 0.62 + rise * 0.4, 0)
+				puff.position = chimney.position + Vector3(0, 0.40 + rise * 0.26, 0)
 				puff.scale = Vector3.ONE * (0.3 + rise * 0.55)
 	var peak := cursor + ROOF_H
 	var count: Label3D = node.get_node("Count")
 	count.visible = show_count
 	count.text = str(int(entry.count))
 	count.scale = Vector3.ONE * float(_punch.get(id, 1.0))
-	count.position = Vector3(0, peak + 0.58, 0)
+	count.position = Vector3(0, peak + 0.40, 0)
 	var full := show_count and sim.is_full(entry)
 	var badge: Label3D = node.get_node("MaxBadge")
 	badge.visible = full
-	badge.position = Vector3(wide * 0.15, peak + 0.95, 0)
+	badge.position = Vector3(wide * 0.15, peak + 0.76, 0)
 	var used := sim.outgoing(id).size() if id != "" and sim != null else 0
 	var marks := ""
 	for i in link_floors:
@@ -763,7 +827,7 @@ func _layout_tower(node: Node3D, entry: Dictionary, delta: float) -> void:
 	var dots: Label3D = node.get_node("Dots")
 	dots.visible = show_count
 	dots.text = marks.strip_edges()
-	dots.position = Vector3(0, peak + 0.2, 0)
+	dots.position = Vector3(0, peak + 0.14, 0)
 	var grab := 1.06 if id == _source_id and _mode == "link" else 1.0
 	node.scale = Vector3.ONE * grab
 
@@ -799,9 +863,9 @@ func _tower_screens() -> Array:
 		var base := _to_world(entry.pos)
 		var factory := str(entry.type) == "tank_factory"
 		var height := _stack_world(int(entry.count), factory)
-		var half := 1.45 if factory else 1.2
+		var half := 0.96 if factory else 0.78
 		var body := _screen_box(base, half, half, height)
-		var label := _screen_box(base + Vector3(0, height, 0), 0.9, 0.45, 1.2)
+		var label := _screen_box(base + Vector3(0, height, 0), 0.85, 0.4, 0.9)
 		infos.append({
 			"id": str(entry.id),
 			"z": base.z,
@@ -849,59 +913,19 @@ func _cover_ratio(front: Rect2, rear: Rect2) -> float:
 
 func _sync_links() -> void:
 	var live := {}
-	var period := 0.62
-	var dash_len := 0.28
-	var shift := fmod(sim.elapsed * 0.75, period)
 	for link in sim.links:
 		var id := int(link.id)
 		live[id] = true
-		var ribbon: Node3D = _links.get(id)
+		var ribbon: MeshInstance3D = _links.get(id)
 		if ribbon == null:
-			ribbon = Node3D.new()
-			var bed := MeshInstance3D.new()
-			bed.name = "Bed"
-			bed.mesh = _dash_box()
-			bed.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			ribbon.add_child(bed)
+			ribbon = MeshInstance3D.new()
+			ribbon.mesh = _dash_box()
+			ribbon.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			_link_root.add_child(ribbon)
 			_links[id] = ribbon
 		var ends := sim.path_ends(str(link.source_id), str(link.target_id))
-		var a := _to_world(ends[0])
-		var b := _to_world(ends[1])
-		var delta := Vector3(b.x - a.x, 0.0, b.z - a.z)
-		var length := delta.length()
-		var dir := delta / length if length > 0.05 else Vector3(0, 0, 1)
-		var count := int(length / period) + 2
-		while ribbon.get_child_count() < count + 1:
-			var dash := MeshInstance3D.new()
-			dash.mesh = _dash_box()
-			dash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			ribbon.add_child(dash)
-		var mat := _link_material(str(link.owner))
-		var bed: MeshInstance3D = ribbon.get_node("Bed")
-		bed.material_override = mat
-		bed.visible = length > 0.05
-		if bed.visible:
-			var mid_bed := (a + b) * 0.5
-			bed.position = Vector3(mid_bed.x, 0.035, mid_bed.z)
-			bed.look_at(bed.position + dir, Vector3.UP)
-			bed.scale = Vector3(0.56, 0.025, length)
-		for i in ribbon.get_child_count():
-			var dash: MeshInstance3D = ribbon.get_child(i)
-			if dash.name == "Bed":
-				continue
-			var along := shift + float(i) * period
-			if along > length - dash_len * 0.35:
-				dash.visible = false
-				continue
-			dash.visible = true
-			dash.material_override = mat
-			var mid := a + dir * (along + dash_len * 0.5)
-			dash.position = Vector3(mid.x, 0.055, mid.z)
-			if dir.length_squared() > 0.0001:
-				dash.look_at(dash.position + dir, Vector3.UP)
-			# Wide dash, pinched at the front so it reads as a chevron.
-			dash.scale = Vector3(0.44, 0.035, dash_len)
+		ribbon.material_override = _link_material(str(link.owner))
+		_aim_beam(ribbon, _to_world(ends[0]), _to_world(ends[1]), LINK_WIDTH, 0.03)
 	var stale: Array = []
 	for id in _links.keys():
 		if not live.has(id):
@@ -1116,7 +1140,7 @@ func _show_preview(screen: Vector2) -> void:
 		_preview.material_override = _preview_blocked_material()
 	else:
 		_preview.material_override = _preview_material(valid)
-	_aim_beam(_preview, from, Vector3(ground.x, 0.08, ground.z), 0.12)
+	_aim_beam(_preview, from, Vector3(ground.x, 0.05, ground.z), LINK_WIDTH, 0.05)
 	_preview.visible = true
 	if valid:
 		_hover_id = str(hit.id)
@@ -1171,7 +1195,7 @@ func _tower_at(screen: Vector2):
 	for entry in sim.towers:
 		var base := _to_world(entry.pos)
 		var height := _stack_world(int(entry.count), str(entry.type) == "tank_factory") + 0.9
-		var half := Vector3(1.2, height * 0.5, 1.2)
+		var half := Vector3(0.85, height * 0.5, 0.85)
 		var center := base + Vector3(0, half.y, 0)
 		var dist := _ray_box(origin, dir, center, half)
 		if dist >= 0.0 and dist < best_t:
@@ -1198,7 +1222,7 @@ func _tower_at(screen: Vector2):
 
 func _stack_world(count: int, factory: bool = false) -> float:
 	if factory:
-		return 0.7 + BAND_H + ROOF_H
+		return FACTORY_H + BAND_H + ROOF_H
 	return (BODY_H + BAND_H) * float(TowerLook.floor_count(count)) + ROOF_H
 
 
@@ -1415,16 +1439,16 @@ func _look_transform(eye: Vector3, target: Vector3) -> Transform3D:
 	return Transform3D(Basis(x_axis, y_axis, z_axis), eye)
 
 
-func _aim_beam(beam: MeshInstance3D, a: Vector3, b: Vector3, thickness: float) -> void:
+func _aim_beam(beam: MeshInstance3D, a: Vector3, b: Vector3, thickness: float, lift: float = 0.05) -> void:
 	var delta := Vector3(b.x - a.x, 0.0, b.z - a.z)
 	var length := delta.length()
 	if length < 0.04:
 		beam.visible = false
 		return
 	beam.visible = true
-	beam.position = Vector3((a.x + b.x) * 0.5, 0.08, (a.z + b.z) * 0.5)
+	beam.position = Vector3((a.x + b.x) * 0.5, lift, (a.z + b.z) * 0.5)
 	beam.look_at(beam.position + delta, Vector3.UP)
-	beam.scale = Vector3(thickness, 0.045, length)
+	beam.scale = Vector3(thickness, 0.02, length)
 
 
 func _solid(color: Color, roughness: float) -> StandardMaterial3D:
@@ -1537,8 +1561,9 @@ func _lip_material(team: String) -> StandardMaterial3D:
 func _link_material(owner: String) -> StandardMaterial3D:
 	if _link_mats.has(owner):
 		return _link_mats[owner]
-	var tint := Palette.ENEMY if owner == "enemy" else Palette.PLAYER
-	var mat := _glass(Color(tint.r, tint.g, tint.b, 0.78))
+	var tint := Palette.team(owner)
+	var mat := _glass(Color(tint.r, tint.g, tint.b, 0.48))
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 	_link_mats[owner] = mat
 	return mat
 

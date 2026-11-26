@@ -54,6 +54,8 @@ func _rules() -> int:
 	failed += _check("a line that only passes beside a tower is allowed", _tower_misses_line())
 	failed += _check("a hedge circle, a rect, and a polygon each block a crossing link", _obstacle_shapes())
 	failed += _check("Mirror Meadow hedges block the cross lanes and leave the near lanes open", _meadow_lanes())
+	failed += _check("hedge trees stay inside their blocking shape", _hedge_containment())
+	failed += _check("every open link clears trees, hedges, and props by a soldier width", _link_clearance())
 	failed += _check("a mud hazard removes soldiers that enter it", _hazard())
 	failed += _check("burrow works grow faster than an outpost", _factory())
 	failed += _check("a seed lobber fires and spends one crew", _artillery())
@@ -447,6 +449,32 @@ func _meadow_lanes() -> bool:
 	var cross_blocked := sim.path_blocked("n_w", "p_e") and sim.path_blocked("n_e", "p_w")
 	var diagonal_blocked := sim.path_blocked("p_w", "e_e") and sim.path_blocked("e_w", "n_e")
 	return open_near and cross_blocked and diagonal_blocked
+
+
+func _hedge_containment() -> bool:
+	var problems := 0
+	for index in BattleRules.LEVEL_COUNT:
+		var sim := MatchSim.new()
+		if not sim.load_level(BattleRules.level_path(index + 1)):
+			return false
+		var hits := FieldDressing.hedge_problems(sim)
+		for line in hits:
+			print("    " + line)
+			problems += 1
+	return problems == 0
+
+
+func _link_clearance() -> bool:
+	var problems := 0
+	for index in BattleRules.LEVEL_COUNT:
+		var sim := MatchSim.new()
+		if not sim.load_level(BattleRules.level_path(index + 1)):
+			return false
+		var hits := FieldDressing.clearance_problems(sim)
+		for line in hits:
+			print("    " + line)
+			problems += 1
+	return problems == 0
 
 
 func _hazard() -> bool:

@@ -16,6 +16,11 @@ const TOWER_RADIUS := 82.0
 ## Smaller than the touch radius, so a lane that only grazes a neighbour still connects.
 const FOOTPRINT := 70.0
 const FIELD_SIZE := Vector2(1000, 1480)
+## Sim pixels per world metre. The meadow view and the dressing footprints share this.
+const WORLD_SCALE := 0.012
+## Half the soldier's body width, in sim pixels (~0.24 m). A marching line has to
+## stay this far off every hedge, tree, and prop, or the body walks through it.
+const SOLDIER_HALF_WIDTH := 20.0
 
 const LEVEL_PATH := "res://data/levels/level_01.json"
 const LEVEL_COUNT := 10

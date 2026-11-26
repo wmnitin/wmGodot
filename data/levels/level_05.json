@@ -76,14 +76,14 @@
       "shape": "circle",
       "x": 0.5,
       "y": 0.36,
-      "radius": 54
+      "radius": 44
     },
     {
       "id": "gate_c",
       "shape": "circle",
       "x": 0.5,
       "y": 0.2,
-      "radius": 40
+      "radius": 20
     }
   ]
 }

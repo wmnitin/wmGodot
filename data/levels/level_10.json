@@ -108,7 +108,7 @@
       "shape": "circle",
       "x": 0.28,
       "y": 0.34,
-      "radius": 50
+      "radius": 49
     },
     {
       "id": "pasture_e",
@@ -122,7 +122,7 @@
       "shape": "circle",
       "x": 0.5,
       "y": 0.28,
-      "radius": 36
+      "radius": 24
     }
   ]
 }
