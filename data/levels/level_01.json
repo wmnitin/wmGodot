@@ -12,5 +12,10 @@
     {"id": "p_e", "type": "outpost", "x": 0.72, "y": 0.80, "owner": "player", "count": 16}
   ],
   "blockades": [],
-  "hazards": []
+  "hazards": [],
+  "obstacles": [
+    {"id": "hedge_s", "shape": "circle", "x": 0.50, "y": 0.73, "radius": 58},
+    {"id": "hedge_w", "shape": "circle", "x": 0.412, "y": 0.366, "radius": 46},
+    {"id": "hedge_e", "shape": "circle", "x": 0.588, "y": 0.366, "radius": 46}
+  ]
 }

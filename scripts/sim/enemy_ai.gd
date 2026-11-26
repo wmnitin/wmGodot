@@ -30,6 +30,8 @@ func act(sim: MatchSim) -> void:
 					continue
 				if not bool(sim.spec_of(target).can_be_targeted):
 					continue
+				if sim.path_blocked(str(tower.id), str(target.id)):
+					continue
 				var score := _connect_score(sim, tower, target)
 				if not _worth_reversing(sim, tower, target, score):
 					continue
@@ -50,6 +52,8 @@ func act(sim: MatchSim) -> void:
 					if sim.has_link(str(tower.id), str(target.id)):
 						continue
 					if not bool(sim.spec_of(target).can_be_targeted):
+						continue
+					if sim.path_blocked(str(tower.id), str(target.id)):
 						continue
 					var score := _connect_score(sim, tower, target)
 					if not _worth_reversing(sim, tower, target, score):
@@ -134,6 +138,8 @@ func _mistake(sim: MatchSim) -> void:
 		if sim.has_link(str(source.id), str(tower.id)):
 			continue
 		if not bool(sim.spec_of(tower).can_be_targeted):
+			continue
+		if sim.path_blocked(str(source.id), str(tower.id)):
 			continue
 		options.append(tower)
 	if options.is_empty():

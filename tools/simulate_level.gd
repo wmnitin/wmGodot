@@ -49,6 +49,10 @@ func _rules() -> int:
 	failed += _check("a seed lobber's extra damage does not garrison the flipped tower", _artillery_volley())
 	failed += _check("a blockade circle rejects a crossing link", _blockade_circle())
 	failed += _check("a bramble tower blocks the path across it", _blockade_tower())
+	failed += _check("a tower body blocks a line that passes through it", _tower_blocks_line())
+	failed += _check("a line that only passes beside a tower is allowed", _tower_misses_line())
+	failed += _check("a hedge circle, a rect, and a polygon each block a crossing link", _obstacle_shapes())
+	failed += _check("Mirror Meadow hedges block the cross lanes and leave the near lanes open", _meadow_lanes())
 	failed += _check("a mud hazard removes soldiers that enter it", _hazard())
 	failed += _check("burrow works grow faster than an outpost", _factory())
 	failed += _check("a seed lobber fires and spends one crew", _artillery())
@@ -256,7 +260,7 @@ func _link_caps() -> bool:
 		{"id": "b", "type": "outpost", "x": 0.2, "y": 0.7, "owner": "neutral", "count": 3},
 		{"id": "c", "type": "outpost", "x": 0.8, "y": 0.7, "owner": "neutral", "count": 3},
 		{"id": "d", "type": "outpost", "x": 0.5, "y": 0.85, "owner": "enemy", "count": 3},
-		{"id": "e", "type": "outpost", "x": 0.5, "y": 0.5, "owner": "enemy", "count": 20},
+		{"id": "e", "type": "outpost", "x": 0.85, "y": 0.28, "owner": "enemy", "count": 20},
 	])
 	if sim.level_of(9) != 1 or sim.level_of(10) != 2 or sim.level_of(29) != 2 or sim.level_of(30) != 3:
 		return false
@@ -335,6 +339,69 @@ func _blockade_tower() -> bool:
 	])
 	var blocked: Dictionary = sim.try_connect("a", "b")
 	return not bool(blocked.ok) and str(blocked.reason) == "blocked"
+
+
+func _tower_blocks_line() -> bool:
+	var sim := _fresh([
+		{"id": "a", "type": "outpost", "x": 0.15, "y": 0.5, "owner": "player", "count": 12},
+		{"id": "mid", "type": "outpost", "x": 0.5, "y": 0.5, "owner": "neutral", "count": 4},
+		{"id": "b", "type": "outpost", "x": 0.85, "y": 0.5, "owner": "enemy", "count": 12},
+	])
+	var blocked: Dictionary = sim.try_connect("a", "b")
+	var near: Dictionary = sim.try_connect("a", "mid")
+	return not bool(blocked.ok) and str(blocked.reason) == "blocked" and bool(near.ok)
+
+
+func _tower_misses_line() -> bool:
+	var sim := _fresh([
+		{"id": "a", "type": "outpost", "x": 0.2, "y": 0.35, "owner": "player", "count": 12},
+		{"id": "side", "type": "outpost", "x": 0.55, "y": 0.78, "owner": "neutral", "count": 4},
+		{"id": "b", "type": "outpost", "x": 0.8, "y": 0.35, "owner": "enemy", "count": 12},
+	])
+	return bool(sim.try_connect("a", "b").ok)
+
+
+func _obstacle_shapes() -> bool:
+	var circle := _fresh([
+		{"id": "a", "type": "outpost", "x": 0.2, "y": 0.5, "owner": "player", "count": 12},
+		{"id": "b", "type": "outpost", "x": 0.8, "y": 0.5, "owner": "enemy", "count": 12},
+	])
+	circle.obstacles.append(circle._make_obstacle({"shape": "circle", "x": 0.5, "y": 0.5, "radius": 50}))
+	if bool(circle.try_connect("a", "b").ok):
+		return false
+	var rect := _fresh([
+		{"id": "a", "type": "outpost", "x": 0.2, "y": 0.5, "owner": "player", "count": 12},
+		{"id": "b", "type": "outpost", "x": 0.8, "y": 0.5, "owner": "enemy", "count": 12},
+	])
+	rect.obstacles.append(rect._make_obstacle({"shape": "rect", "x": 0.5, "y": 0.5, "hw": 40, "hh": 30}))
+	if bool(rect.try_connect("a", "b").ok):
+		return false
+	var poly := _fresh([
+		{"id": "a", "type": "outpost", "x": 0.2, "y": 0.5, "owner": "player", "count": 12},
+		{"id": "b", "type": "outpost", "x": 0.8, "y": 0.5, "owner": "enemy", "count": 12},
+	])
+	poly.obstacles.append(poly._make_obstacle({
+		"shape": "polygon",
+		"points": [[0.46, 0.42], [0.54, 0.42], [0.54, 0.58], [0.46, 0.58]],
+	}))
+	var off := _fresh([
+		{"id": "a", "type": "outpost", "x": 0.2, "y": 0.5, "owner": "player", "count": 12},
+		{"id": "b", "type": "outpost", "x": 0.8, "y": 0.5, "owner": "enemy", "count": 12},
+	])
+	off.obstacles.append(off._make_obstacle({"shape": "circle", "x": 0.5, "y": 0.8, "radius": 40}))
+	return not bool(poly.try_connect("a", "b").ok) and bool(off.try_connect("a", "b").ok)
+
+
+func _meadow_lanes() -> bool:
+	var sim := MatchSim.new()
+	if not sim.load_level(BattleRules.LEVEL_PATH):
+		return false
+	if sim.obstacles.size() < 2:
+		return false
+	var open_near := bool(sim.try_connect("p_w", "n_w").ok) and bool(sim.try_connect("p_e", "n_c").ok)
+	var cross_blocked := sim.path_blocked("n_w", "p_e") and sim.path_blocked("n_e", "p_w")
+	var diagonal_blocked := sim.path_blocked("p_w", "e_e") and sim.path_blocked("e_w", "n_e")
+	return open_near and cross_blocked and diagonal_blocked
 
 
 func _hazard() -> bool:
@@ -566,25 +633,23 @@ func _tower_height() -> bool:
 		return false
 	if TowerLook.floor_count(30) != 3 or TowerLook.floor_count(60) != 3:
 		return false
-	var amounts_10 := TowerLook.floor_amounts(10)
-	var amounts_29 := TowerLook.floor_amounts(29)
-	var amounts_30 := TowerLook.floor_amounts(30)
-	var amounts_60 := TowerLook.floor_amounts(60)
-	if float(amounts_10[1]) >= float(amounts_29[1]):
+	# Height is constant inside a level and steps up only when a floor is added.
+	if not is_equal_approx(TowerLook.stack_height(0), TowerLook.stack_height(9)):
 		return false
-	if float(amounts_29[1]) < 0.99:
+	if not is_equal_approx(TowerLook.stack_height(10), TowerLook.stack_height(29)):
 		return false
-	if float(amounts_30[2]) >= float(amounts_60[2]):
+	if not is_equal_approx(TowerLook.stack_height(30), TowerLook.stack_height(60)):
 		return false
-	if float(amounts_60[2]) < 0.99:
+	if TowerLook.stack_height(10) <= TowerLook.stack_height(9):
 		return false
-	var previous := -1.0
-	for count in [0, 4, 9, 10, 20, 29, 30, 45, 60]:
-		var height := TowerLook.stack_height(count)
-		if height <= previous:
-			return false
-		previous = height
-	return true
+	if TowerLook.stack_height(30) <= TowerLook.stack_height(29):
+		return false
+	var low := TowerLook.floor_amounts(4)
+	var mid := TowerLook.floor_amounts(20)
+	var high := TowerLook.floor_amounts(45)
+	return is_equal_approx(float(low[0]), 1.0) and float(low[1]) == 0.0 \
+		and is_equal_approx(float(mid[1]), 1.0) and float(mid[2]) == 0.0 \
+		and is_equal_approx(float(high[2]), 1.0)
 
 
 func _artillery_volley() -> bool:

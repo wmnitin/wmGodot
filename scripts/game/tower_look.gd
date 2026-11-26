@@ -1,42 +1,32 @@
 extends RefCounted
 class_name TowerLook
 
-## How tall a tower is drawn. Gameplay counts stay in the sim.
-## Level 1 is one floor, level 2 adds a second, level 3 a third.
-## Inside a level the top floor's height eases from a stub to full
-## so the stack grows with every soldier instead of popping.
+## How tall a tower is drawn. Height changes only when the level changes:
+## one full floor below 10, two from 10, three from 30. The count inside a
+## level does not stretch the building. MAX is a badge, not a fourth floor.
 
 const RISE := 52.0
-const MIN_NEW_FLOOR := 0.2
 
 
 static func floor_amounts(count: int) -> PackedFloat32Array:
 	var floors := PackedFloat32Array([0.0, 0.0, 0.0])
-	var c := clampi(count, 0, BattleRules.MAX_COUNT)
-	if c < BattleRules.LEVEL_2_AT:
-		floors[0] = lerpf(0.46, 1.0, float(c) / float(BattleRules.LEVEL_2_AT - 1))
-	elif c < BattleRules.LEVEL_3_AT:
-		floors[0] = 1.0
-		var span := float(BattleRules.LEVEL_3_AT - 1 - BattleRules.LEVEL_2_AT)
-		floors[1] = lerpf(MIN_NEW_FLOOR, 1.0, float(c - BattleRules.LEVEL_2_AT) / span)
-	else:
-		floors[0] = 1.0
-		floors[1] = 1.0
-		var span := float(BattleRules.MAX_COUNT - BattleRules.LEVEL_3_AT)
-		floors[2] = lerpf(MIN_NEW_FLOOR, 1.0, float(c - BattleRules.LEVEL_3_AT) / span)
+	var level := 1
+	if count >= BattleRules.LEVEL_3_AT:
+		level = 3
+	elif count >= BattleRules.LEVEL_2_AT:
+		level = 2
+	for i in level:
+		floors[i] = 1.0
 	return floors
 
 
 static func stack_height(count: int) -> float:
-	var total := 0.0
-	for amount in floor_amounts(count):
-		total += RISE * amount
-	return total
+	return RISE * float(floor_count(count))
 
 
 static func floor_count(count: int) -> int:
-	var n := 0
-	for amount in floor_amounts(count):
-		if amount > 0.001:
-			n += 1
-	return n
+	if count >= BattleRules.LEVEL_3_AT:
+		return 3
+	if count >= BattleRules.LEVEL_2_AT:
+		return 2
+	return 1

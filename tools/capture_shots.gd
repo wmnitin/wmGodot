@@ -53,6 +53,7 @@ func _process(_delta: float) -> void:
 		_phase = "clash_shot"
 		_tick = 0
 	elif _phase == "clash_shot" and _tick == 1:
+		_save("battle")
 		var lane_a: Vector3 = _game._towers["p_w"].global_position
 		var lane_b: Vector3 = _game._towers["e_w"].global_position
 		_frame((lane_a + lane_b) * 0.5 + Vector3(0, 0.35, 0), Vector3(2.4, 2.0, 2.8))
@@ -87,6 +88,20 @@ func _process(_delta: float) -> void:
 		_tick = 0
 	elif _phase == "tank_shot" and _tick == 3:
 		_save("tank_on_the_move")
+		for link in _game.sim.links.duplicate():
+			_game.sim.try_cut(int(link.id))
+		_game._sync(0.0)
+		_game._fit_camera(true)
+		var from: Vector3 = _game._to_world(_game.sim.tower("e_w").pos)
+		var to: Vector3 = _game._to_world(_game.sim.tower("n_e").pos)
+		_game._preview.visible = true
+		_game._preview.material_override = _game._preview_blocked_material()
+		_game._aim_beam(_game._preview, from + Vector3(0, 0.08, 0), to + Vector3(0, 0.08, 0), 0.18)
+		_phase = "blocked"
+		_tick = 0
+	elif _phase == "blocked" and _tick == 3:
+		_save("blocked_link")
+		_game._preview.visible = false
 		_begin_studio()
 	elif _phase == "studio":
 		if _tick == 2:
@@ -100,7 +115,12 @@ func _begin_studio() -> void:
 	_game._units.visible = false
 	_phase = "studio"
 	_tick = 0
-	_queue = ["l1", "l2", "l3", "max", "factory", "soldier", "soldier_side", "tank", "tank_side"]
+	_queue = [
+		"blue1", "blue2", "blue3", "bluemax",
+		"red1", "red2", "red3", "redmax",
+		"neutral1", "neutral2", "neutral3", "neutralmax",
+		"factory", "soldier", "tank",
+	]
 	_next_studio()
 
 
@@ -117,14 +137,8 @@ func _next_studio() -> void:
 		return
 	var item: String = _queue.pop_front()
 	_tick = 0
-	if item == "l1":
-		_show_tower("p_w", 4, "tower_level_1", 0.7)
-	elif item == "l2":
-		_show_tower("p_w", 18, "tower_level_2", 1.15)
-	elif item == "l3":
-		_show_tower("p_w", 40, "tower_level_3", 1.6)
-	elif item == "max":
-		_show_tower("p_w", 60, "tower_max", 1.9)
+	if item.begins_with("blue") or item.begins_with("red") or item.begins_with("neutral"):
+		_show_team_tower(item)
 	elif item == "factory":
 		var factory = _game.sim.tower("n_c")
 		factory.owner = "player"
@@ -157,6 +171,38 @@ func _next_studio() -> void:
 			_frame(Vector3(0, 0.26, 0), Vector3(1.9, 0.6, 0.45))
 
 
+func _show_team_tower(item: String) -> void:
+	var owner := "player"
+	var id := "p_w"
+	var tag := "blue"
+	if item.begins_with("red"):
+		owner = "enemy"
+		id = "e_w"
+		tag = "red"
+	elif item.begins_with("neutral"):
+		owner = "neutral"
+		id = "n_w"
+		tag = "neutral"
+	var count := 4
+	var focus := 0.55
+	var suffix := "level_1"
+	if item.ends_with("2"):
+		count = 18
+		focus = 1.05
+		suffix = "level_2"
+	elif item.ends_with("3"):
+		count = 40
+		focus = 1.45
+		suffix = "level_3"
+	elif item.ends_with("max"):
+		count = 60
+		focus = 1.55
+		suffix = "max"
+	var entry = _game.sim.tower(id)
+	entry.owner = owner
+	_show_tower(id, count, "tower_%s_%s" % [tag, suffix], focus)
+
+
 func _show_tower(id: String, count: int, file_name: String, focus_y: float) -> void:
 	for key in _game._towers.keys():
 		_game._towers[key].visible = str(key) == id
@@ -166,7 +212,7 @@ func _show_tower(id: String, count: int, file_name: String, focus_y: float) -> v
 	_studio = Node3D.new()
 	_studio.name = file_name
 	var focus: Vector3 = tower.global_position + Vector3(0, focus_y, 0)
-	_frame(focus, Vector3(4.4, 2.8, 5.2))
+	_frame(focus, Vector3(3.1, 2.15, 3.6))
 
 
 func _hide_towers() -> void:

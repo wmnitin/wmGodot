@@ -6,7 +6,7 @@ signal restart_requested
 ## Sim space stays in pixels. The view maps that onto a small 3D meadow.
 const WORLD_SCALE := 0.012
 const PITCH_DEG := 52.0
-const FLOOR_H := 0.82
+const FLOOR_H := 0.68
 
 var sim: MatchSim
 var _models := CapyModels.new()
@@ -48,10 +48,13 @@ var _end_delay := 0.0
 var _view_size := Vector2.ZERO
 var _lip_mats := {}
 var _link_mats := {}
-var _pip_gold: StandardMaterial3D
-var _pip_idle: StandardMaterial3D
 var _preview_ok: StandardMaterial3D
 var _preview_dim: StandardMaterial3D
+var _preview_blocked: StandardMaterial3D
+var _blob_mat: StandardMaterial3D
+var _blob_mesh: PlaneMesh
+var _dash_mesh: BoxMesh
+var _smoke_mat: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -81,10 +84,13 @@ func _build_world() -> void:
 	add_child(world_env)
 
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-50, -32, 0)
-	sun.light_energy = 1.2
+	sun.rotation_degrees = Vector3(-48, -36, 0)
+	sun.light_energy = 1.25
+	# Blob shadows carry the soft drop-shadow read. A full shadow map on the
+	# mobile/GL path is too heavy for this many bevelled meshes.
 	sun.shadow_enabled = false
 	add_child(sun)
+	_make_blob()
 
 	_camera = Camera3D.new()
 	_camera.fov = 36.0
@@ -97,21 +103,22 @@ func _build_world() -> void:
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(60, 60)
 	ground.mesh = plane
-	ground.material_override = _solid(Color("5E9A52"), 0.95)
+	ground.material_override = _solid(Color("E4C48A"), 0.95)
 	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(ground)
 
 	var field := BattleRules.FIELD_SIZE * WORLD_SCALE
 	var meadow := MeshInstance3D.new()
 	var patch := PlaneMesh.new()
-	patch.size = Vector2(field.x + 1.4, field.y + 1.4)
+	patch.size = Vector2(field.x + 0.35, field.y + 0.35)
 	meadow.mesh = patch
-	meadow.position = Vector3(0, 0.012, 0)
-	meadow.material_override = _solid(Color("7EBE68"), 0.9)
+	meadow.position = Vector3(0, 0.02, 0)
+	meadow.material_override = _solid(Color("7CDE46"), 0.92)
 	meadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(meadow)
 	_add_grass(field)
 	_add_decor(field)
+	_add_hedges()
 
 	_beam_mesh = BoxMesh.new()
 	_beam_mesh.size = Vector3(1, 1, 1)
@@ -133,60 +140,106 @@ func _build_world() -> void:
 	add_child(_preview)
 
 	_hover_ring = MeshInstance3D.new()
-	_hover_ring.mesh = _models.lip_mesh()
+	_hover_ring.mesh = _models.chamfer_mesh()
 	_hover_ring.material_override = _solid(Palette.GOLD, 0.45)
-	_hover_ring.scale = Vector3(1.35, 1.0, 1.35)
+	_hover_ring.scale = Vector3(1.7, 0.08, 1.7)
 	_hover_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_hover_ring.visible = false
 	add_child(_hover_ring)
 
 
 func _add_grass(field: Vector2) -> void:
-	var multi := MultiMesh.new()
-	multi.transform_format = MultiMesh.TRANSFORM_3D
-	var tuft := SphereMesh.new()
-	tuft.radius = 0.1
-	tuft.height = 0.26
-	tuft.radial_segments = 5
-	tuft.rings = 2
-	multi.mesh = tuft
-	multi.instance_count = 24
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11
-	for i in multi.instance_count:
-		var x := rng.randf_range(-field.x * 0.62, field.x * 0.62)
-		var z := rng.randf_range(-field.y * 0.55, field.y * 0.55)
-		var h := rng.randf_range(0.55, 1.15)
-		var basis := Basis.IDENTITY.scaled(Vector3(1.0, h, 1.0))
-		multi.set_instance_transform(i, Transform3D(basis, Vector3(x, 0.06, z)))
-	var grass := MultiMeshInstance3D.new()
-	grass.multimesh = multi
-	grass.material_override = _solid(Color("8FCB6E"), 0.85)
-	grass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(grass)
+	for i in 10:
+		var patch := MeshInstance3D.new()
+		var mesh := PlaneMesh.new()
+		mesh.orientation = PlaneMesh.FACE_Y
+		var w := rng.randf_range(1.1, 2.4)
+		mesh.size = Vector2(w, rng.randf_range(0.8, 1.8))
+		patch.mesh = mesh
+		patch.position = Vector3(
+			rng.randf_range(-field.x * 0.38, field.x * 0.38),
+			0.025,
+			rng.randf_range(-field.y * 0.4, field.y * 0.4)
+		)
+		var color := Color("A6EE74") if i % 2 == 0 else Color("5FCB38")
+		patch.material_override = _solid(color, 0.95)
+		patch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(patch)
 
 
 func _add_decor(field: Vector2) -> void:
-	var spots := [
-		Vector3(-field.x * 0.72, 0, -field.y * 0.42),
-		Vector3(field.x * 0.7, 0, -field.y * 0.38),
-		Vector3(-field.x * 0.68, 0, field.y * 0.46),
-		Vector3(field.x * 0.74, 0, field.y * 0.4),
-		Vector3(0, 0, -field.y * 0.62),
-		Vector3(-field.x * 0.2, 0, field.y * 0.64),
+	var props := [
+		{"at": Vector3(-field.x * 0.58, 0, -field.y * 0.52), "kind": "rock"},
+		{"at": Vector3(field.x * 0.6, 0, -field.y * 0.5), "kind": "rock"},
+		{"at": Vector3(-field.x * 0.62, 0, field.y * 0.48), "kind": "crate"},
+		{"at": Vector3(field.x * 0.58, 0, field.y * 0.5), "kind": "crate"},
+		{"at": Vector3(-field.x * 0.46, 0, field.y * 0.56), "kind": "barrel"},
+		{"at": Vector3(field.x * 0.48, 0, -field.y * 0.56), "kind": "tyre"},
+		{"at": Vector3(0.0, 0, -field.y * 0.58), "kind": "rock"},
+		{"at": Vector3(-field.x * 0.2, 0, field.y * 0.58), "kind": "barrel"},
 	]
-	for spot in spots:
-		var bush := MeshInstance3D.new()
-		var mesh := SphereMesh.new()
-		mesh.radius = 0.38
-		mesh.height = 0.62
-		mesh.radial_segments = 6
-		mesh.rings = 3
-		bush.mesh = mesh
-		bush.position = spot + Vector3(0, 0.28, 0)
-		bush.material_override = _solid(Color("3E8A45"), 0.8)
-		bush.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(bush)
+	for prop in props:
+		_drop_prop(prop.at, str(prop.kind))
+	# Border pines that are scenery. The blocking hedges are planted separately.
+	_plant_cluster(Vector3(-field.x * 0.62, 0, -field.y * 0.2), 3)
+	_plant_cluster(Vector3(field.x * 0.64, 0, -field.y * 0.16), 3)
+	_plant_cluster(Vector3(-field.x * 0.66, 0, field.y * 0.18), 2)
+	_plant_cluster(Vector3(field.x * 0.66, 0, field.y * 0.22), 2)
+
+
+func _add_hedges() -> void:
+	for obstacle in sim.obstacles:
+		if str(obstacle.get("shape", "")) != "circle":
+			continue
+		_plant_cluster(_to_world(obstacle.pos), 4)
+
+
+func _plant_cluster(center: Vector3, count: int) -> void:
+	var offsets := [Vector3.ZERO, Vector3(0.38, 0, 0.16), Vector3(-0.28, 0, 0.3), Vector3(0.12, 0, -0.34)]
+	for i in mini(count, offsets.size()):
+		var pine := MeshInstance3D.new()
+		pine.mesh = _models.pine_mesh()
+		pine.material_override = _models.vertex_material()
+		pine.position = center + offsets[i]
+		pine.scale = Vector3.ONE * (0.85 + float(i) * 0.06)
+		pine.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(pine)
+
+
+func _drop_prop(at: Vector3, kind: String) -> void:
+	var node := MeshInstance3D.new()
+	node.mesh = _models.chamfer_mesh()
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.position = at
+	match kind:
+		"rock":
+			node.scale = Vector3(0.55, 0.32, 0.42)
+			node.position.y = 0.16
+			node.material_override = _models.flat_material(Color("8D939C"))
+		"crate":
+			node.scale = Vector3(0.42, 0.42, 0.42)
+			node.position.y = 0.22
+			node.material_override = _models.flat_material(Color("C4843A"))
+		"barrel":
+			node.scale = Vector3(0.32, 0.4, 0.32)
+			node.position.y = 0.2
+			node.material_override = _models.flat_material(Color("8A5A32"))
+		"tyre":
+			node.scale = Vector3(0.4, 0.16, 0.4)
+			node.position.y = 0.28
+			node.material_override = _models.flat_material(Color("2C3138"))
+			var mid := MeshInstance3D.new()
+			mid.mesh = _models.chamfer_mesh()
+			mid.scale = Vector3(0.4, 0.16, 0.4)
+			mid.position = at + Vector3(0, 0.12, 0)
+			mid.material_override = _models.flat_material(Color("3A414A"))
+			mid.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(mid)
+		_:
+			node.scale = Vector3(0.3, 0.3, 0.3)
+	add_child(node)
 
 
 func _build_hud() -> void:
@@ -321,51 +374,40 @@ func _make_tower(entry: Dictionary) -> Node3D:
 	node.set_meta("factory", factory)
 	node.set_meta("team", team)
 	node.position = _to_world(entry.pos)
-
-	var shadow := MeshInstance3D.new()
-	shadow.name = "Shadow"
-	shadow.mesh = _models.lip_mesh()
-	shadow.scale = Vector3(1.25, 0.15, 1.25)
-	shadow.position = Vector3(0, 0.03, 0)
-	var shade := StandardMaterial3D.new()
-	shade.albedo_color = Color(0, 0, 0, 0.28)
-	shade.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	shade.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	shadow.material_override = shade
-	shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	node.add_child(shadow)
+	node.add_child(_make_blob_node(1.7 if factory else 1.35))
 
 	var mat := _models.team_material(team)
+	var band := _models.flat_material(Color("F4F7FB"))
+	var slit_mat := _models.flat_material(Color("243044"))
 	for i in 3:
-		var floor := MeshInstance3D.new()
+		var floor := Node3D.new()
 		floor.name = "Floor%d" % i
-		floor.mesh = _models.factory_mesh() if factory else _models.floor_mesh()
-		floor.material_override = mat
-		floor.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var body := _block("Body", mat)
+		var stripe := _block("Band", band)
+		var slit := _block("Slit", slit_mat)
+		floor.add_child(body)
+		floor.add_child(stripe)
+		floor.add_child(slit)
 		node.add_child(floor)
-		var lip := MeshInstance3D.new()
-		lip.name = "Lip%d" % i
-		lip.mesh = _models.lip_mesh()
-		lip.material_override = _lip_material(team)
-		lip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		node.add_child(lip)
-
+	var door := _block("Door", slit_mat)
+	node.add_child(door)
+	var roof := _block("Roof", mat)
+	node.add_child(roof)
 	if factory:
-		var chimney := MeshInstance3D.new()
-		chimney.name = "Chimney"
-		chimney.mesh = _models.floor_mesh()
-		chimney.material_override = _solid(Color("5C4A3A"), 0.7)
-		chimney.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var chimney := _block("Chimney", _models.flat_material(Color("6A5344")))
 		node.add_child(chimney)
-		var bay := _models.make_tank(team)
-		bay.name = "Bay"
-		bay.scale = Vector3(0.55, 0.55, 0.55)
-		node.add_child(bay)
-
-	var capy := _models.make_soldier(team)
-	capy.name = "Capy"
-	capy.scale = Vector3(1.15, 1.15, 1.15)
-	node.add_child(capy)
+		for s in 3:
+			var puff := MeshInstance3D.new()
+			puff.name = "Smoke%d" % s
+			var ball := SphereMesh.new()
+			ball.radius = 0.12
+			ball.height = 0.24
+			ball.radial_segments = 8
+			ball.rings = 4
+			puff.mesh = ball
+			puff.material_override = _smoke_material()
+			puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			node.add_child(puff)
 
 	var count := Label3D.new()
 	count.name = "Count"
@@ -391,20 +433,16 @@ func _make_tower(entry: Dictionary) -> Node3D:
 	badge.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	node.add_child(badge)
 
-	var pips := Node3D.new()
-	pips.name = "Pips"
-	node.add_child(pips)
-	var pip_mesh := SphereMesh.new()
-	pip_mesh.radius = 0.07
-	pip_mesh.height = 0.14
-	pip_mesh.radial_segments = 6
-	pip_mesh.rings = 2
-	for i in 3:
-		var pip := MeshInstance3D.new()
-		pip.name = "Pip%d" % i
-		pip.mesh = pip_mesh
-		pip.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		pips.add_child(pip)
+	var dots := Label3D.new()
+	dots.name = "Dots"
+	dots.font_size = 48
+	dots.pixel_size = 0.006
+	dots.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	dots.modulate = Color.WHITE
+	dots.outline_size = 8
+	dots.outline_modulate = Palette.INK
+	dots.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.add_child(dots)
 	return node
 
 
@@ -479,57 +517,62 @@ func _sync_towers(delta: float) -> void:
 		var spec: Dictionary = sim.spec_of(entry)
 		var show_count := bool(spec.can_be_targeted)
 		var factory := bool(node.get_meta("factory"))
-		var amounts := TowerLook.floor_amounts(int(entry.count))
+		var floors := TowerLook.floor_count(int(entry.count))
 		var cursor := 0.0
+		var wide := 1.85 if factory else 1.28
+		var deep := 1.35 if factory else 1.28
+		var floor_h := 0.5 if factory else FLOOR_H
 		for i in 3:
-			var amount := float(amounts[i])
-			var floor: MeshInstance3D = node.get_node("Floor%d" % i)
-			var lip: MeshInstance3D = node.get_node("Lip%d" % i)
-			var show_floor := show_count and amount > 0.02
+			var floor: Node3D = node.get_node("Floor%d" % i)
+			var show_floor := show_count and i < floors
 			floor.visible = show_floor
-			lip.visible = show_floor and not factory
 			if not show_floor:
 				continue
-			var height := FLOOR_H * amount
-			var widen := 1.0 - float(i) * 0.06
-			if factory:
-				floor.scale = Vector3(widen, height, widen)
-			else:
-				floor.scale = Vector3(widen, height, widen)
-			floor.position = Vector3(0, cursor + height * 0.5, 0)
-			lip.scale = Vector3(1.02 * widen, 1.0, 1.02 * widen)
-			lip.position = Vector3(0, cursor + height + 0.04, 0)
-			cursor = cursor + height + 0.07
+			var body: MeshInstance3D = floor.get_node("Body")
+			body.scale = Vector3(wide - float(i) * 0.06, floor_h, deep - float(i) * 0.06)
+			body.position = Vector3(0, cursor + floor_h * 0.5, 0)
+			var band: MeshInstance3D = floor.get_node("Band")
+			band.scale = Vector3(body.scale.x * 1.04, 0.1, body.scale.z * 1.04)
+			band.position = Vector3(0, cursor + floor_h - 0.08, 0)
+			var slit: MeshInstance3D = floor.get_node("Slit")
+			slit.scale = Vector3(body.scale.x * 0.42, 0.07, 0.08)
+			slit.position = Vector3(0, cursor + floor_h * 0.55, body.scale.z * 0.5)
+			cursor += floor_h
+		var roof: MeshInstance3D = node.get_node("Roof")
+		roof.visible = show_count
+		roof.scale = Vector3(wide + 0.12, 0.14, deep + 0.12)
+		roof.position = Vector3(0, cursor + 0.07, 0)
+		var door: MeshInstance3D = node.get_node("Door")
+		door.visible = show_count
+		door.scale = Vector3(0.46 if factory else 0.28, 0.34 if factory else 0.3, 0.08)
+		door.position = Vector3(0, door.scale.y * 0.5, deep * 0.5)
 		if factory:
 			var chimney: MeshInstance3D = node.get_node("Chimney")
-			chimney.scale = Vector3(0.22, maxf(cursor, 0.4) + 0.55, 0.22)
-			chimney.position = Vector3(0.78, chimney.scale.y * 0.5, 0.62)
-			var bay: Node3D = node.get_node("Bay")
-			bay.position = Vector3(-0.2, 0.02, 1.35)
-			bay.rotation.y = PI
-		var bob := sin(sim.elapsed * 2.2 + float(hash(id)) * 0.001) * 0.04
-		var capy: Node3D = node.get_node("Capy")
-		capy.position = Vector3(0, cursor + bob, 0)
-		capy.rotation.y = PI
-		var held: Node3D = capy.get_node("Sword")
-		held.rotation = Vector3(-0.7, 0.2, -1.15)
+			chimney.scale = Vector3(0.22, 0.72, 0.22)
+			chimney.position = Vector3(wide * 0.32, cursor + 0.4, -deep * 0.22)
+			for s in 3:
+				var puff: MeshInstance3D = node.get_node("Smoke%d" % s)
+				var rise := fmod(sim.elapsed * 0.35 + float(s) * 0.33, 1.0)
+				puff.position = chimney.position + Vector3(0, 0.4 + rise * 0.7, 0)
+				puff.scale = Vector3.ONE * (0.4 + rise * 0.85)
+		var roof_y := cursor + 0.22
 		var count: Label3D = node.get_node("Count")
 		count.visible = show_count
 		count.text = str(int(entry.count))
 		count.scale = Vector3.ONE * float(_punch[id])
-		count.position = Vector3(0, maxf(0.45, cursor * 0.55), 0.95)
+		count.position = Vector3(0, roof_y + 0.28, 0.05)
 		var full := show_count and sim.is_full(entry)
 		var badge: Label3D = node.get_node("MaxBadge")
 		badge.visible = full
-		badge.position = Vector3(0, cursor + 0.72, 0.2)
+		badge.position = Vector3(0.42, roof_y + 0.42, 0)
 		var used := sim.outgoing(id).size()
-		var gap := 0.22
-		var start := -float(maxi(level - 1, 0)) * gap * 0.5
-		for i in 3:
-			var pip: MeshInstance3D = node.get_node("Pips/Pip%d" % i)
-			pip.visible = show_count and i < level
-			pip.position = Vector3(start + float(i) * gap, 0.16, 1.05)
-			pip.material_override = _pip_material(i < used)
+		var marks := ""
+		for i in floors:
+			marks += "● " if i < used else "○ "
+		var dots: Label3D = node.get_node("Dots")
+		dots.visible = show_count
+		dots.text = marks.strip_edges()
+		dots.position = Vector3(0, roof_y + 0.02, 0.2)
 		var grab := 1.05 if id == _source_id and _mode == "link" else 1.0
 		node.scale = Vector3.ONE * grab
 
@@ -537,39 +580,52 @@ func _sync_towers(delta: float) -> void:
 func _paint_tower(node: Node3D, team: String) -> void:
 	node.set_meta("team", team)
 	var mat := _models.team_material(team)
-	var lip := _lip_material(team)
 	for i in 3:
-		var floor: MeshInstance3D = node.get_node("Floor%d" % i)
-		floor.material_override = mat
-		var lip_node: MeshInstance3D = node.get_node("Lip%d" % i)
-		lip_node.material_override = lip
-	var capy: Node3D = node.get_node("Capy")
-	var body: MeshInstance3D = capy.get_child(0)
-	body.mesh = _models.soldier_mesh(team)
-	if bool(node.get_meta("factory")):
-		var bay: Node3D = node.get_node("Bay")
-		var hull: MeshInstance3D = bay.get_child(0)
-		hull.mesh = _models.tank_hull_mesh(team)
-		var turret: Node3D = bay.get_node("Turret")
-		var turret_mesh: MeshInstance3D = turret.get_child(0)
-		turret_mesh.mesh = _models.tank_turret_mesh(team)
+		var body: MeshInstance3D = node.get_node("Floor%d/Body" % i)
+		body.material_override = mat
+	var roof: MeshInstance3D = node.get_node("Roof")
+	roof.material_override = mat
 
 
 func _sync_links() -> void:
 	var live := {}
+	var period := 0.48
+	var dash_len := 0.2
+	var shift := fmod(sim.elapsed * 0.75, period)
 	for link in sim.links:
 		var id := int(link.id)
 		live[id] = true
-		var beam: MeshInstance3D = _links.get(id)
-		if beam == null:
-			beam = MeshInstance3D.new()
-			beam.mesh = _beam_mesh
-			beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			_link_root.add_child(beam)
-			_links[id] = beam
+		var ribbon: Node3D = _links.get(id)
+		if ribbon == null:
+			ribbon = Node3D.new()
+			_link_root.add_child(ribbon)
+			_links[id] = ribbon
 		var ends := sim.path_ends(str(link.source_id), str(link.target_id))
-		_aim_beam(beam, _to_world(ends[0]), _to_world(ends[1]), 0.16)
-		beam.material_override = _link_material(str(link.owner))
+		var a := _to_world(ends[0])
+		var b := _to_world(ends[1])
+		var delta := Vector3(b.x - a.x, 0.0, b.z - a.z)
+		var length := delta.length()
+		var dir := delta / length if length > 0.05 else Vector3(0, 0, 1)
+		var count := int(length / period) + 2
+		while ribbon.get_child_count() < count:
+			var dash := MeshInstance3D.new()
+			dash.mesh = _dash_box()
+			dash.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			ribbon.add_child(dash)
+		var mat := _link_material(str(link.owner))
+		for i in ribbon.get_child_count():
+			var dash: MeshInstance3D = ribbon.get_child(i)
+			var along := shift + float(i) * period
+			if i >= count or along > length - dash_len * 0.4:
+				dash.visible = false
+				continue
+			dash.visible = true
+			dash.material_override = mat
+			var mid := a + dir * (along + dash_len * 0.5)
+			dash.position = Vector3(mid.x, 0.045, mid.z)
+			if dir.length_squared() > 0.0001:
+				dash.look_at(dash.position + dir, Vector3.UP)
+			dash.scale = Vector3(0.16, 0.025, dash_len)
 	var stale: Array = []
 	for id in _links.keys():
 		if not live.has(id):
@@ -630,9 +686,9 @@ func _place_unit(unit: Node3D, soldier: Dictionary) -> void:
 		var swung := float(soldier.get("swing", -1.0))
 		if swung >= 0.0 and sim.elapsed - swung < 0.34:
 			var k := (sim.elapsed - swung) / 0.34
-			sword.rotation = Vector3(sin(k * PI) * -1.7, 0.0, -0.35)
+			sword.rotation = Vector3(-0.4 + sin(k * PI) * -1.15, 0.2, -0.9)
 		else:
-			sword.rotation = Vector3(-0.4, 0.0, -0.55)
+			sword.rotation = Vector3(-0.4, 0.2, -0.9)
 
 
 func _borrow_unit(kind: String, team: String) -> Node3D:
@@ -646,6 +702,7 @@ func _borrow_unit(kind: String, team: String) -> Node3D:
 		return reused
 	var made := _models.make_tank(team) if kind == "tank" else _models.make_soldier(team)
 	made.set_meta("pool", key)
+	made.add_child(_make_blob_node(1.15 if kind == "tank" else 0.7))
 	_units.add_child(made)
 	return made
 
@@ -733,7 +790,11 @@ func _show_preview(screen: Vector2) -> void:
 	var ground := _ground_point(screen)
 	var hit = _tower_at(screen)
 	var valid := hit != null and str(hit.id) != _source_id
-	_preview.material_override = _preview_material(valid)
+	var blocked := valid and sim.path_blocked(_source_id, str(hit.id))
+	if blocked:
+		_preview.material_override = _preview_blocked_material()
+	else:
+		_preview.material_override = _preview_material(valid)
 	_aim_beam(_preview, from, Vector3(ground.x, 0.08, ground.z), 0.12)
 	_preview.visible = true
 	if valid:
@@ -766,7 +827,7 @@ func _explain(reason: String) -> void:
 		"link_cap":
 			text = "Link limit reached. Swipe that tower's line to cut one."
 		"blocked":
-			text = "Bramble is in the way."
+			text = "That line is blocked."
 		"no_send":
 			text = "That building cannot send troops."
 		"no_target":
@@ -788,21 +849,68 @@ func _tower_at(screen: Vector2):
 	var best_t := 1.0e9
 	for entry in sim.towers:
 		var base := _to_world(entry.pos)
-		var height := maxf(1.1, _stack_world(int(entry.count)) + 0.8)
-		var dist := _ray_column(origin, dir, base, 0.95, height)
+		var height := _stack_world(int(entry.count)) + 0.9
+		var half := Vector3(1.25, height * 0.5, 1.25)
+		var center := base + Vector3(0, half.y, 0)
+		var dist := _ray_box(origin, dir, center, half)
 		if dist >= 0.0 and dist < best_t:
 			best_t = dist
+			best = entry
+	if best != null:
+		return best
+	var vp := get_viewport().get_visible_rect().size
+	var reach := maxf(96.0, vp.y * 0.055)
+	var best_d := reach
+	for entry in sim.towers:
+		var base := _to_world(entry.pos)
+		var top := base + Vector3(0, _stack_world(int(entry.count)) + 0.4, 0)
+		if _camera.is_position_behind(base) and _camera.is_position_behind(top):
+			continue
+		var foot := _camera.unproject_position(base)
+		var roof := _camera.unproject_position(top)
+		var dist := Geom.point_segment_distance(screen, foot, roof)
+		if dist < best_d:
+			best_d = dist
 			best = entry
 	return best
 
 
 func _stack_world(count: int) -> float:
-	var amounts := TowerLook.floor_amounts(count)
-	var total := 0.0
-	for amount in amounts:
-		if float(amount) > 0.02:
-			total += FLOOR_H * float(amount) + 0.07
-	return total
+	return FLOOR_H * float(TowerLook.floor_count(count)) + 0.16
+
+
+func _ray_box(origin: Vector3, dir: Vector3, center: Vector3, half: Vector3) -> float:
+	var t0 := _axis_enter(origin.x - center.x, dir.x, half.x, 0.0, 1.0e6)
+	if t0.y < 0.0:
+		return -1.0
+	var t1 := _axis_enter(origin.y - center.y, dir.y, half.y, t0.x, t0.y)
+	if t1.y < 0.0:
+		return -1.0
+	var t2 := _axis_enter(origin.z - center.z, dir.z, half.z, t1.x, t1.y)
+	if t2.y < 0.0:
+		return -1.0
+	if t2.x >= 0.0:
+		return t2.x
+	return t2.y if t2.y >= 0.0 else -1.0
+
+
+func _axis_enter(origin: float, delta: float, half: float, t0: float, t1: float) -> Vector2:
+	if absf(delta) < 0.000001:
+		if absf(origin) > half:
+			return Vector2(t0, -1.0)
+		return Vector2(t0, t1)
+	var inv := 1.0 / delta
+	var ta := (-half - origin) * inv
+	var tb := (half - origin) * inv
+	if ta > tb:
+		var swap := ta
+		ta = tb
+		tb = swap
+	var lo := maxf(t0, ta)
+	var hi := minf(t1, tb)
+	if lo > hi:
+		return Vector2(lo, -1.0)
+	return Vector2(lo, hi)
 
 
 func _ray_column(origin: Vector3, dir: Vector3, base: Vector3, radius: float, height: float) -> float:
@@ -903,27 +1011,99 @@ func _solid(color: Color, roughness: float) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
 	mat.roughness = roughness
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return mat
 
 
-func _pip_material(used: bool) -> StandardMaterial3D:
-	if used:
-		if _pip_gold == null:
-			_pip_gold = _solid(Palette.GOLD, 0.45)
-		return _pip_gold
-	if _pip_idle == null:
-		_pip_idle = _solid(Color(1, 1, 1, 0.7), 0.5)
-	return _pip_idle
+func _block(node_name: String, mat: Material) -> MeshInstance3D:
+	var mesh := MeshInstance3D.new()
+	mesh.name = node_name
+	mesh.mesh = _models.chamfer_mesh()
+	mesh.material_override = mat
+	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# A slightly smaller solid box fills any gap in the bevel so the bunker stays closed.
+	var core := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(0.86, 0.86, 0.86)
+	core.mesh = box
+	core.material_override = mat
+	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mesh.add_child(core)
+	return mesh
+
+
+func _make_blob() -> void:
+	_blob_mesh = PlaneMesh.new()
+	_blob_mesh.orientation = PlaneMesh.FACE_Y
+	_blob_mesh.size = Vector2(1, 1)
+	var image := Image.create(48, 48, false, Image.FORMAT_RGBA8)
+	for y in 48:
+		for x in 48:
+			var d := Vector2(float(x) - 23.5, float(y) - 23.5).length() / 24.0
+			var a := clampf(1.0 - d, 0.0, 1.0)
+			a = a * a
+			image.set_pixel(x, y, Color(0, 0, 0, a * 0.5))
+	var tex := ImageTexture.create_from_image(image)
+	_blob_mat = StandardMaterial3D.new()
+	_blob_mat.albedo_texture = tex
+	_blob_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_blob_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_blob_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_dash_mesh = BoxMesh.new()
+	_dash_mesh.size = Vector3(1, 1, 1)
+
+
+func _make_blob_node(size: float) -> MeshInstance3D:
+	if _blob_mesh == null:
+		_make_blob()
+	var blob := MeshInstance3D.new()
+	blob.name = "Shadow"
+	blob.mesh = _blob_mesh
+	blob.material_override = _blob_mat
+	blob.scale = Vector3(size, 1.0, size * 0.72)
+	blob.position = Vector3(0.08, 0.03, 0.1)
+	blob.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return blob
+
+
+func _smoke_material() -> StandardMaterial3D:
+	if _smoke_mat == null:
+		_smoke_mat = StandardMaterial3D.new()
+		_smoke_mat.albedo_color = Color(0.95, 0.96, 0.98, 0.4)
+		_smoke_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_smoke_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_smoke_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return _smoke_mat
+
+
+func _dash_box() -> BoxMesh:
+	if _dash_mesh == null:
+		_dash_mesh = BoxMesh.new()
+		_dash_mesh.size = Vector3(1, 1, 1)
+	return _dash_mesh
 
 
 func _preview_material(valid: bool) -> StandardMaterial3D:
 	if valid:
 		if _preview_ok == null:
-			_preview_ok = _solid(Palette.PLAYER, 0.35)
+			_preview_ok = _glass(Color(Palette.PLAYER.r, Palette.PLAYER.g, Palette.PLAYER.b, 0.72))
 		return _preview_ok
 	if _preview_dim == null:
-		_preview_dim = _solid(Color(0.75, 0.78, 0.84), 0.45)
+		_preview_dim = _glass(Color(0.75, 0.78, 0.84, 0.55))
 	return _preview_dim
+
+
+func _preview_blocked_material() -> StandardMaterial3D:
+	if _preview_blocked == null:
+		_preview_blocked = _glass(Color(0.95, 0.28, 0.32, 0.8))
+	return _preview_blocked
+
+
+func _glass(color: Color) -> StandardMaterial3D:
+	var mat := _solid(color, 0.4)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	return mat
 
 
 func _lip_material(team: String) -> StandardMaterial3D:
@@ -937,8 +1117,8 @@ func _lip_material(team: String) -> StandardMaterial3D:
 func _link_material(owner: String) -> StandardMaterial3D:
 	if _link_mats.has(owner):
 		return _link_mats[owner]
-	var color := Palette.ENEMY if owner == "enemy" else Palette.PLAYER
-	var mat := _solid(color, 0.35)
+	var tint := Palette.ENEMY if owner == "enemy" else Palette.PLAYER
+	var mat := _glass(Color(tint.r, tint.g, tint.b, 0.78))
 	_link_mats[owner] = mat
 	return mat
 

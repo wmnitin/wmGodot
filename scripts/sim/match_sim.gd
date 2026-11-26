@@ -23,6 +23,7 @@ var towers: Array = []
 var links: Array = []
 var soldiers: Array = []
 var blockades: Array = []
+var obstacles: Array = []
 var hazards: Array = []
 
 var state := "playing"
@@ -85,6 +86,7 @@ func setup_direct(data: Dictionary) -> void:
 	links.clear()
 	soldiers.clear()
 	blockades.clear()
+	obstacles.clear()
 	hazards.clear()
 	_by_id.clear()
 	state = "playing"
@@ -109,6 +111,9 @@ func setup_direct(data: Dictionary) -> void:
 	for raw in data.get("blockades", []):
 		if typeof(raw) == TYPE_DICTIONARY:
 			blockades.append(_make_circle(raw, 80.0))
+	for raw in data.get("obstacles", []):
+		if typeof(raw) == TYPE_DICTIONARY:
+			obstacles.append(_make_obstacle(raw))
 	for raw in data.get("hazards", []):
 		if typeof(raw) == TYPE_DICTIONARY:
 			hazards.append(_make_circle(raw, 70.0))
@@ -285,19 +290,126 @@ func path_blocked(source_id: String, target_id: String) -> bool:
 	for circle in blockades:
 		if Geom.point_segment_distance(circle.pos, ends[0], ends[1]) <= float(circle.radius):
 			return true
+	for obstacle in obstacles:
+		if _segment_hits_obstacle(ends[0], ends[1], obstacle):
+			return true
 	for entry in towers:
 		var id := str(entry.id)
 		if id == source_id or id == target_id:
 			continue
 		var spec := spec_of(entry)
-		if not bool(spec.blocks_paths):
-			continue
-		var radius := float(spec.block_radius)
+		var radius := 0.0
+		if bool(spec.can_be_targeted):
+			radius = BattleRules.FOOTPRINT
+		if bool(spec.blocks_paths):
+			var extra := float(spec.block_radius)
+			if extra <= 0.0:
+				extra = BattleRules.TOWER_RADIUS
+			radius = maxf(radius, extra)
 		if radius <= 0.0:
-			radius = BattleRules.TOWER_RADIUS
+			continue
 		if Geom.point_segment_distance(entry.pos, ends[0], ends[1]) <= radius:
 			return true
 	return false
+
+
+func _segment_hits_obstacle(a: Vector2, b: Vector2, obstacle: Dictionary) -> bool:
+	var shape := str(obstacle.get("shape", "circle"))
+	if shape == "rect":
+		return _segment_hits_rect(a, b, obstacle.pos, obstacle.half)
+	if shape == "polygon":
+		return _segment_hits_poly(a, b, obstacle.points)
+	return Geom.point_segment_distance(obstacle.pos, a, b) <= float(obstacle.radius)
+
+
+func _segment_hits_rect(a: Vector2, b: Vector2, center: Vector2, half: Vector2) -> bool:
+	var mn := center - half
+	var mx := center + half
+	var dx := b.x - a.x
+	var dy := b.y - a.y
+	var t0 := 0.0
+	var t1 := 1.0
+	if absf(dx) < 0.00001:
+		if a.x < mn.x or a.x > mx.x:
+			return false
+	else:
+		var inv_x := 1.0 / dx
+		var tax := (mn.x - a.x) * inv_x
+		var tbx := (mx.x - a.x) * inv_x
+		if tax > tbx:
+			var swap_x := tax
+			tax = tbx
+			tbx = swap_x
+		t0 = maxf(t0, tax)
+		t1 = minf(t1, tbx)
+		if t0 > t1:
+			return false
+	if absf(dy) < 0.00001:
+		if a.y < mn.y or a.y > mx.y:
+			return false
+	else:
+		var inv_y := 1.0 / dy
+		var tay := (mn.y - a.y) * inv_y
+		var tby := (mx.y - a.y) * inv_y
+		if tay > tby:
+			var swap_y := tay
+			tay = tby
+			tby = swap_y
+		t0 = maxf(t0, tay)
+		t1 = minf(t1, tby)
+		if t0 > t1:
+			return false
+	return true
+
+
+func _segment_hits_poly(a: Vector2, b: Vector2, points: PackedVector2Array) -> bool:
+	var count := points.size()
+	if count < 3:
+		return false
+	if _point_in_poly(a, points) or _point_in_poly(b, points):
+		return true
+	for i in count:
+		var c: Vector2 = points[i]
+		var d: Vector2 = points[(i + 1) % count]
+		if Geom.segments_near(a, b, c, d, 1.0):
+			return true
+	return false
+
+
+func _point_in_poly(point: Vector2, points: PackedVector2Array) -> bool:
+	var inside := false
+	var j := points.size() - 1
+	for i in points.size():
+		var a: Vector2 = points[i]
+		var b: Vector2 = points[j]
+		if ((a.y > point.y) != (b.y > point.y)) and point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x:
+			inside = not inside
+		j = i
+	return inside
+
+
+func _make_obstacle(raw: Dictionary) -> Dictionary:
+	var shape := str(raw.get("shape", "circle"))
+	var pos := _world_from_norm(float(raw.get("x", 0.5)), float(raw.get("y", 0.5)))
+	if shape == "rect":
+		return {
+			"id": str(raw.get("id", "obs")),
+			"shape": "rect",
+			"pos": pos,
+			"half": Vector2(float(raw.get("hw", 40.0)), float(raw.get("hh", 40.0))),
+		}
+	if shape == "polygon":
+		var pts := PackedVector2Array()
+		for point in raw.get("points", []):
+			if typeof(point) == TYPE_ARRAY and point.size() >= 2:
+				pts.append(_world_from_norm(float(point[0]), float(point[1])))
+		return {"id": str(raw.get("id", "obs")), "shape": "polygon", "points": pts, "pos": pos}
+	return {
+		"id": str(raw.get("id", "obs")),
+		"shape": "circle",
+		"pos": pos,
+		"radius": float(raw.get("radius", 60.0)),
+	}
 
 
 func soldier_position(soldier: Dictionary) -> Vector2:

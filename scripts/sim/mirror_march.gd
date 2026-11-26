@@ -64,6 +64,8 @@ func _pick(sim: MatchSim, source: Dictionary):
 			continue
 		if not bool(sim.spec_of(tower).can_be_targeted):
 			continue
+		if sim.path_blocked(str(source.id), str(tower.id)):
+			continue
 		var dist: float = sim.world_pos(str(source.id)).distance_to(sim.world_pos(str(tower.id)))
 		var score := -1.0e9
 		if str(tower.owner) == "neutral":
