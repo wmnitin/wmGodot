@@ -108,7 +108,7 @@ There is no settings menu yet. `GameSettings` already stores `difficulty`, `musi
   - `hazard` (Mud Pit) removes a soldier that walks into it.
 - A level may also list `blockades` and `hazards` as circles: `{ "x", "y", "radius" }`.
 - A behaviour that flags cannot express goes in `scripts/sim/abilities.gd`.
-- Art is only in `assets/sprites/`. Replace a PNG and keep the file name; the match code does not need to change. `tools/make_placeholders.py` redraws the current placeholders (needs Pillow). The font is Nunito ExtraBold under the SIL Open Font License (`assets/fonts/OFL.txt`).
+- Art is only in `assets/sprites/`. Replace a PNG and keep the file name; the match code does not need to change. Towers are stacked from `tower_face.png` and `tower_top.png` (one floor, drawn with a slight top-down tilt). `tools/make_placeholders.py` redraws the current placeholders (needs Pillow). The font is Nunito ExtraBold under the SIL Open Font License (`assets/fonts/OFL.txt`).
 
 Expected audio, when you have it:
 

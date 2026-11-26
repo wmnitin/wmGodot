@@ -3,7 +3,6 @@ extends Node2D
 signal match_finished(victory: bool)
 signal restart_requested
 
-const HIT_RADIUS := 156.0
 const DISC_SCALE := BattleRules.TOWER_RADIUS / ArtLibrary.DISC_TEX_RADIUS
 
 var sim: MatchSim
@@ -34,8 +33,7 @@ var _hint_time := 0.0
 var _over := false
 var _end_delay := 0.0
 var _link_root: Node2D
-var _soldier_root: Node2D
-var _tower_root: Node2D
+var _actors: Node2D
 var _bg: Sprite2D
 var _field_scale := 1.0
 
@@ -81,12 +79,13 @@ func _build_static() -> void:
 	_link_root = Node2D.new()
 	_link_root.z_index = 1
 	add_child(_link_root)
-	_soldier_root = Node2D.new()
-	_soldier_root.z_index = 2
-	add_child(_soldier_root)
-	_tower_root = Node2D.new()
-	_tower_root.z_index = 3
-	add_child(_tower_root)
+	# One Y-sorted layer for towers and soldiers. The node position is the
+	# ground contact, so a soldier lower on the screen draws in front.
+	_actors = Node2D.new()
+	_actors.name = "Actors"
+	_actors.y_sort_enabled = true
+	_actors.z_index = 2
+	add_child(_actors)
 
 	_preview_edge = _make_line(Color(1, 1, 1, 0.9), 22)
 	_preview_core = _make_line(Color(1, 1, 1, 0.95), 8)
@@ -184,12 +183,13 @@ func _build_hud() -> void:
 
 
 func _build_towers() -> void:
-	for child in _tower_root.get_children():
+	for child in _actors.get_children():
 		child.queue_free()
 	_towers.clear()
+	_soldiers.clear()
 	for entry in sim.towers:
 		var node := _make_tower(entry)
-		_tower_root.add_child(node)
+		_actors.add_child(node)
 		_towers[str(entry.id)] = node
 		_punch[str(entry.id)] = 1.0
 		_prev_owner[str(entry.id)] = str(entry.owner)
@@ -202,37 +202,31 @@ func _make_tower(entry: Dictionary) -> Node2D:
 	var shadow := Sprite2D.new()
 	shadow.name = "Shadow"
 	shadow.texture = ArtLibrary.texture(ArtLibrary.SHADOW)
-	shadow.scale = Vector2(DISC_SCALE * 1.2, DISC_SCALE * 0.55)
-	shadow.position = Vector2(0, 18)
-	shadow.modulate = Color(0, 0, 0, 0.35)
+	shadow.scale = Vector2(0.72, 0.28)
+	shadow.position = Vector2(0, 10)
+	shadow.modulate = Color(0, 0, 0, 0.33)
 	node.add_child(shadow)
 
-	var rim := Sprite2D.new()
-	rim.name = "Rim"
-	rim.texture = ArtLibrary.texture(ArtLibrary.RIM)
-	rim.scale = Vector2.ONE * DISC_SCALE
-	node.add_child(rim)
-
-	var gold := Sprite2D.new()
-	gold.name = "GoldRim"
-	gold.texture = ArtLibrary.texture(ArtLibrary.RIM)
-	gold.scale = Vector2.ONE * DISC_SCALE * 1.2
-	gold.modulate = Palette.GOLD
-	gold.visible = false
-	node.add_child(gold)
-
-	var disc := Sprite2D.new()
-	disc.name = "Disc"
-	disc.texture = ArtLibrary.texture(ArtLibrary.DISC)
-	disc.scale = Vector2.ONE * DISC_SCALE * 0.92
-	disc.modulate = Palette.team(str(entry.owner))
-	node.add_child(disc)
+	var face_tex := ArtLibrary.texture(ArtLibrary.TOWER_FACE)
+	var top_tex := ArtLibrary.texture(ArtLibrary.TOWER_TOP)
+	for i in 3:
+		var floor := Node2D.new()
+		floor.name = "Floor%d" % i
+		var face := Sprite2D.new()
+		face.name = "Face"
+		face.texture = face_tex
+		floor.add_child(face)
+		var top := Sprite2D.new()
+		top.name = "Top"
+		top.texture = top_tex
+		floor.add_child(top)
+		node.add_child(floor)
 
 	var capy := Sprite2D.new()
 	capy.name = "Capy"
 	capy.texture = ArtLibrary.portrait(str(entry.type))
-	capy.scale = Vector2.ONE * 0.46
-	capy.position = Vector2(0, -96)
+	capy.scale = Vector2.ONE * 0.40
+	capy.position = Vector2(0, -70)
 	node.add_child(capy)
 
 	var count := Label.new()
@@ -241,7 +235,7 @@ func _make_tower(entry: Dictionary) -> Node2D:
 	count.position = Vector2(-80, -48)
 	count.size = Vector2(160, 96)
 	count.pivot_offset = Vector2(80, 48)
-	UiKit.outlined(count, Palette.CREAM, Palette.INK, 58)
+	UiKit.outlined(count, Palette.CREAM, Palette.INK, 40)
 	node.add_child(count)
 
 	var badge := Control.new()
@@ -318,11 +312,6 @@ func _sync_towers(delta: float) -> void:
 			continue
 		node.position = _to_screen(entry.pos)
 		var level := sim.level_of(int(entry.count))
-		var level_scale := 0.94
-		if level == 2:
-			level_scale = 1.0
-		elif level >= 3:
-			level_scale = 1.08
 		if int(entry.count) != int(_prev_count.get(id, -1)):
 			_punch[id] = 1.16
 		if str(entry.owner) != str(_prev_owner.get(id, "")):
@@ -333,31 +322,57 @@ func _sync_towers(delta: float) -> void:
 		_prev_owner[id] = str(entry.owner)
 		_punch[id] = lerpf(float(_punch[id]), 1.0, 1.0 - exp(-10.0 * delta))
 
-		var disc: Sprite2D = node.get_node("Disc")
-		var rim: Sprite2D = node.get_node("Rim")
-		var gold: Sprite2D = node.get_node("GoldRim")
 		var capy: Sprite2D = node.get_node("Capy")
 		var count: Label = node.get_node("Count")
 		var spec: Dictionary = sim.spec_of(entry)
 		var show_count := bool(spec.can_be_targeted)
-		disc.modulate = Palette.team(str(entry.owner))
-		disc.scale = Vector2.ONE * DISC_SCALE * 0.92 * level_scale * float(_punch[id])
-		rim.scale = Vector2.ONE * DISC_SCALE * level_scale
-		gold.visible = level >= 3 and show_count
-		capy.position = Vector2(0, -96 + sin(sim.elapsed * 2.4 + float(hash(id)) * 0.001) * 4.0)
+		var team := Palette.team(str(entry.owner))
+		var amounts := TowerLook.floor_amounts(int(entry.count))
+		var ground_y := 18.0
+		var cursor_y := ground_y
+		var roof_y := ground_y
+		for i in 3:
+			var amount := float(amounts[i])
+			var floor: Node2D = node.get_node("Floor%d" % i)
+			var face: Sprite2D = floor.get_node("Face")
+			var top: Sprite2D = floor.get_node("Top")
+			var show_floor := show_count and amount > 0.02
+			floor.visible = show_floor
+			if not show_floor:
+				continue
+			var face_h := TowerLook.RISE * amount
+			face.scale = Vector2(150.0 / 400.0, face_h / 128.0)
+			face.position = Vector2(0, cursor_y - face_h * 0.5)
+			top.scale = Vector2(168.0 / 440.0, 34.0 / 160.0)
+			top.position = Vector2(0, cursor_y - face_h)
+			var lift := 0.05 * float(i)
+			face.modulate = team.darkened(0.38 - lift)
+			top.modulate = team.lightened(0.22 + lift)
+			# Leave the bright roof lip showing so each floor reads as its own storey.
+			cursor_y = top.position.y - 8.0
+			roof_y = top.position.y - 18.0
+		var bob := sin(sim.elapsed * 2.4 + float(hash(id)) * 0.001) * 3.0
+		if show_count:
+			capy.position = Vector2(0, roof_y - 36.0 + bob)
+			capy.scale = Vector2.ONE * 0.40
+		else:
+			capy.position = Vector2(0, -36.0 + bob)
+			capy.scale = Vector2.ONE * 0.55
 		count.visible = show_count
 		count.text = str(int(entry.count))
 		count.scale = Vector2.ONE * float(_punch[id])
+		count.position = Vector2(-70, (ground_y + roof_y) * 0.5 - 40.0)
 		var full := show_count and sim.is_full(entry)
 		var badge: Control = node.get_node("MaxBadge")
 		badge.visible = full
+		badge.position = Vector2(-54, roof_y - 8.0)
 		var used := sim.outgoing(id).size()
 		var gap := 32.0
 		var start := -float(maxi(level - 1, 0)) * gap * 0.5
 		for i in 3:
 			var pip: Sprite2D = node.get_node("Pips/Pip%d" % i)
 			pip.visible = show_count and i < level
-			pip.position = Vector2(start + float(i) * gap, 108 if full else 100)
+			pip.position = Vector2(start + float(i) * gap, 36)
 			if i < used:
 				pip.modulate = Palette.GOLD
 			else:
@@ -411,7 +426,7 @@ func _sync_soldiers() -> void:
 			sprite = Sprite2D.new()
 			sprite.texture = ArtLibrary.soldier(str(soldier.team))
 			sprite.scale = Vector2.ONE * 0.42
-			_soldier_root.add_child(sprite)
+			_actors.add_child(sprite)
 			_soldiers[id] = sprite
 		var ends := sim.path_ends(str(soldier.source_id), str(soldier.target_id))
 		var a := _to_screen(ends[0])
@@ -558,10 +573,12 @@ func _explain(reason: String) -> void:
 
 func _tower_at(screen: Vector2):
 	var best = null
-	var best_d := HIT_RADIUS
-	var world := _to_world(screen)
+	var best_d := 100.0 * _field_scale
 	for entry in sim.towers:
-		var dist := world.distance_to(entry.pos)
+		var base := _to_screen(entry.pos)
+		var mast := TowerLook.stack_height(int(entry.count)) * _field_scale
+		var roof := base + Vector2(0, -mast - 48.0 * _field_scale)
+		var dist := Geom.point_segment_distance(screen, base, roof)
 		if dist <= best_d:
 			best_d = dist
 			best = entry

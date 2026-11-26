@@ -5,6 +5,8 @@ class_name ArtLibrary
 ## and the rules do not need to change.
 
 const DISC := "res://assets/sprites/disc.png"
+const TOWER_FACE := "res://assets/sprites/tower_face.png"
+const TOWER_TOP := "res://assets/sprites/tower_top.png"
 const RIM := "res://assets/sprites/rim.png"
 const SHADOW := "res://assets/sprites/shadow.png"
 const PIP := "res://assets/sprites/pip.png"

@@ -38,6 +38,7 @@ func _rules() -> int:
 	failed += _check("enemy towers also keep only one direction between themselves", _enemy_reverse())
 	failed += _check("a reverse drag at the link cap does not delete the old link", _reverse_respects_cap())
 	failed += _check("a tower at 60 is full and one at 59 is not", _max_state())
+	failed += _check("tower height grows smoothly and adds a floor at each level", _tower_height())
 	failed += _check("a seed lobber's extra damage does not garrison the flipped tower", _artillery_volley())
 	failed += _check("a blockade circle rejects a crossing link", _blockade_circle())
 	failed += _check("a bramble tower blocks the path across it", _blockade_tower())
@@ -483,6 +484,34 @@ func _max_state() -> bool:
 	sim.spawn_soldier("p_e", "p_w", "player", 0.99)
 	_step(sim, 0.1)
 	return int(sim.tower("p_w").count) == 60 and sim.is_full(sim.tower("p_w"))
+
+
+func _tower_height() -> bool:
+	if TowerLook.floor_count(0) != 1 or TowerLook.floor_count(9) != 1:
+		return false
+	if TowerLook.floor_count(10) != 2 or TowerLook.floor_count(29) != 2:
+		return false
+	if TowerLook.floor_count(30) != 3 or TowerLook.floor_count(60) != 3:
+		return false
+	var amounts_10 := TowerLook.floor_amounts(10)
+	var amounts_29 := TowerLook.floor_amounts(29)
+	var amounts_30 := TowerLook.floor_amounts(30)
+	var amounts_60 := TowerLook.floor_amounts(60)
+	if float(amounts_10[1]) >= float(amounts_29[1]):
+		return false
+	if float(amounts_29[1]) < 0.99:
+		return false
+	if float(amounts_30[2]) >= float(amounts_60[2]):
+		return false
+	if float(amounts_60[2]) < 0.99:
+		return false
+	var previous := -1.0
+	for count in [0, 4, 9, 10, 20, 29, 30, 45, 60]:
+		var height := TowerLook.stack_height(count)
+		if height <= previous:
+			return false
+		previous = height
+	return true
 
 
 func _artillery_volley() -> bool:

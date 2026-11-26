@@ -176,6 +176,25 @@ def soldier_image(cape: tuple, size: int = 128) -> Image.Image:
     return supersample(size, draw)
 
 
+def tower_face_image() -> Image.Image:
+    """Front wall of one floor. Fills the canvas so height scaling stays chunky."""
+    img = Image.new("RGBA", (400, 128), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((8, 4, 392, 124), radius=18, fill=(176, 186, 200, 255))
+    d.rectangle((8, 8, 392, 48), fill=(214, 222, 232, 255))
+    d.rectangle((16, 86, 384, 118), fill=(150, 160, 176, 255))
+    return img
+
+
+def tower_top_image() -> Image.Image:
+    """Elliptical roof, brighter than the wall, for a slight top-down tilt."""
+    img = Image.new("RGBA", (440, 160), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.ellipse((8, 18, 432, 142), fill=(255, 255, 255, 255))
+    d.ellipse((36, 34, 250, 96), fill=(255, 255, 255, 120))
+    return img
+
+
 def pip_image(size: int = 64) -> Image.Image:
     def draw(img, n):
         d = ImageDraw.Draw(img)
@@ -284,6 +303,8 @@ def background_image() -> Image.Image:
 def main() -> None:
     save(background_image(), "background.png")
     save(disc_image(), "disc.png")
+    save(tower_face_image(), "tower_face.png")
+    save(tower_top_image(), "tower_top.png")
     save(rim_image(), "rim.png")
     save(shadow_image(), "shadow.png")
     save(capybara_image(None), "capybara.png")
