@@ -86,7 +86,15 @@ func _process(_delta: float) -> void:
 		_game._sync(0.05)
 		_phase = "tank_shot"
 		_tick = 0
-	elif _phase == "tank_shot" and _tick == 3:
+	elif _phase == "tank_shot" and _tick == 2:
+		var tank_focus := Vector3(0, 0.4, 0)
+		for id in _game._active.keys():
+			var unit: Node3D = _game._active[id]
+			if unit != null and unit.visible and str(unit.get_meta("pool", "")).begins_with("tank"):
+				tank_focus = unit.global_position + Vector3(0, 0.35, 0)
+				break
+		_frame(tank_focus, Vector3(2.4, 1.7, 2.8))
+	elif _phase == "tank_shot" and _tick == 5:
 		_save("tank_on_the_move")
 		for link in _game.sim.links.duplicate():
 			_game.sim.try_cut(int(link.id))
@@ -212,8 +220,9 @@ func _show_tower(id: String, count: int, file_name: String, focus_y: float) -> v
 	_studio = Node3D.new()
 	_studio.name = file_name
 	var height: float = _game._stack_world(count, id == "n_c")
-	var focus: Vector3 = tower.global_position + Vector3(0, height * 0.42, 0)
-	_frame(focus, Vector3(height * 0.72, height * 0.38, height * 0.95))
+	var focus: Vector3 = tower.global_position + Vector3(0, height * 0.5, 0)
+	var pull := 1.15 if id == "n_c" else 1.0
+	_frame(focus, Vector3(height * 0.95, height * 0.5, height * 1.2) * pull)
 	if focus_y < 0.0:
 		_frame(focus, Vector3(5.4, 3.3, 6.0))
 

@@ -490,7 +490,8 @@ func _make_tower(entry: Dictionary) -> Node3D:
 	node.add_child(roof)
 	var flag := _kits.grounded(KitLibrary.CASTLE + "flag.glb")
 	flag.name = "Flag"
-	flag.scale = Vector3.ONE * (piece_scale * 0.72)
+	flag.scale = Vector3.ONE * (piece_scale * 1.15)
+	flag.rotation.y = PI * 0.5
 	flag.visible = false
 	node.add_child(flag)
 	if factory:
@@ -644,13 +645,13 @@ func _sync_towers(delta: float) -> void:
 		var roof_h := roof_size.y * roof.scale.y
 		var flag: Node3D = node.get_node("Flag")
 		flag.visible = show_count and sim.is_full(entry)
-		flag.position = Vector3(wide * 0.55, cursor + roof_h * 0.55, -wide * 0.35)
+		flag.position = Vector3(wide * 0.95, cursor + roof_h * 0.82, wide * 0.05)
 		if factory:
 			var cannon: Node3D = node.get_node("Cannon")
-			cannon.position = Vector3(-wide * 0.15, cursor + roof_h * 0.35, wide * 0.05)
+			cannon.position = Vector3(-wide * 0.05, cursor + roof_h, wide * 0.15)
 			var chimney: Node3D = node.get_node("Chimney")
 			var chimney_h: float = float(chimney.get_meta("height")) * chimney.scale.y
-			chimney.position = Vector3(wide * 0.72, cursor + roof_h * 0.15, -wide * 0.35)
+			chimney.position = Vector3(wide * 0.85, cursor + roof_h * 0.55, -wide * 0.2)
 			for s in 3:
 				var puff: MeshInstance3D = node.get_node("Smoke%d" % s)
 				var rise := fmod(sim.elapsed * 0.35 + float(s) * 0.33, 1.0)
@@ -802,8 +803,9 @@ func _place_unit(unit: Node3D, soldier: Dictionary) -> void:
 	var kind := str(soldier.get("kind", "soldier"))
 	var base_scale := 1.45 if kind == "tank" else 1.55
 	if kind == "tank":
-		var turret: Node3D = unit.get_node("Turret")
-		turret.rotation.y = sin(sim.elapsed * 1.6 + float(soldier.id)) * 0.18
+		var turret := unit.find_child("Turret", true, false) as Node3D
+		if turret != null:
+			turret.rotation.y = sin(sim.elapsed * 1.6 + float(soldier.id)) * 0.18
 		var flash := 1.0
 		if not dying and age >= 0.0 and age < 0.28:
 			flash = 1.0 + 0.16 * sin(age * 48.0)

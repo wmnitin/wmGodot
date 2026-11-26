@@ -185,19 +185,19 @@ func make_soldier(team: String) -> Node3D:
 	var worn := Palette.team(team)
 	var helmet := kits().grounded(KitLibrary.QUATERNIUS + "Helmet1.glb")
 	var helm_size: Vector3 = helmet.get_meta("size")
-	helmet.scale = Vector3.ONE * (0.2 / maxf(helm_size.y, 0.001))
-	helmet.position = Vector3(0, size.y * fit * 0.78, size.z * fit * 0.34)
+	helmet.scale = Vector3.ONE * (0.18 / maxf(helm_size.y, 0.001))
+	helmet.position = Vector3(0, size.y * fit * 0.62, size.z * fit * 0.36)
 	kits().tint(helmet, worn, 0.88)
 	root.add_child(helmet)
 	var vest := kits().grounded(KitLibrary.QUATERNIUS + "ShoulderPads.glb")
 	var vest_size: Vector3 = vest.get_meta("size")
-	vest.scale = Vector3.ONE * (0.34 / maxf(vest_size.x, 0.001))
-	vest.position = Vector3(0, size.y * fit * 0.48, size.z * fit * 0.02)
-	kits().tint(vest, worn, 0.9)
+	vest.scale = Vector3(0.46 / maxf(vest_size.x, 0.001), 0.12 / maxf(vest_size.y, 0.001), 0.22 / maxf(vest_size.z, 0.001))
+	vest.position = Vector3(0, size.y * fit * 0.55, size.z * fit * 0.08)
+	kits().tint(vest, worn, 0.92)
 	root.add_child(vest)
 	var sword := Node3D.new()
 	sword.name = "Sword"
-	sword.position = Vector3(size.x * fit * 0.42, size.y * fit * 0.22, size.z * fit * 0.28)
+	sword.position = Vector3(size.x * fit * 0.55, size.y * fit * 0.38, size.z * fit * 0.22)
 	var blade := kits().grounded(KitLibrary.QUATERNIUS + "Sword.glb")
 	var blade_size: Vector3 = blade.get_meta("size")
 	var long_axis := blade_size.y
@@ -207,7 +207,7 @@ func make_soldier(team: String) -> Node3D:
 	elif blade_size.z >= blade_size.y:
 		blade.rotation_degrees = Vector3(-90, 0, 0)
 		long_axis = blade_size.z
-	blade.scale = Vector3.ONE * (0.42 / maxf(long_axis, 0.001))
+	blade.scale = Vector3.ONE * (0.5 / maxf(long_axis, 0.001))
 	sword.add_child(blade)
 	root.add_child(sword)
 	return root
