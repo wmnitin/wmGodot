@@ -16,6 +16,7 @@ func _init() -> void:
 
 func _late_checks() -> void:
 	_failed += _check("settings save and load", _settings_roundtrip())
+	_failed += _occlusion()
 	_failed += await _audio_runtime()
 	if _failed == 0:
 		print("ALL CHECKS PASSED")
@@ -88,6 +89,39 @@ func _winnable() -> int:
 			for seed in [2, 7, 21]:
 				var extra := _play_path(path, names["normal"], seed)
 				print("    note  normal seed %d -> %s in %.1fs" % [seed, str(extra.state), float(extra.time)])
+	return failed
+
+
+func _occlusion() -> int:
+	var failed := 0
+	var settings = root.get_node_or_null("GameSettings")
+	if settings == null:
+		print("  FAIL  max-height towers do not cover the row behind (no settings)")
+		return 1
+	for index in BattleRules.LEVEL_COUNT:
+		var number := index + 1
+		settings.set_level_index(number)
+		var viewport := SubViewport.new()
+		viewport.size = Vector2i(1080, 1920)
+		viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		root.add_child(viewport)
+		var game = load("res://scripts/game/game_view.gd").new()
+		viewport.add_child(game)
+		game.set_process(false)
+		if game.sim == null:
+			print("  FAIL  level %02d max-height towers do not cover the row behind (no view)" % number)
+			failed += 1
+			viewport.queue_free()
+			continue
+		for entry in game.sim.towers:
+			game.sim.force_count(str(entry.id), 60)
+		game._fit_camera(true)
+		var problems: PackedStringArray = game.occlusion_problems()
+		var ok := problems.is_empty()
+		failed += _check("level %02d max-height towers do not cover the row behind" % number, ok)
+		for line in problems:
+			print("    " + line)
+		viewport.queue_free()
 	return failed
 
 

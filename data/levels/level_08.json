@@ -38,16 +38,16 @@
     {
       "id": "n3",
       "type": "outpost",
-      "x": 0.54,
-      "y": 0.64,
+      "x": 0.72,
+      "y": 0.70,
       "owner": "neutral",
       "count": 5
     },
     {
       "id": "n4",
       "type": "outpost",
-      "x": 0.62,
-      "y": 0.56,
+      "x": 0.88,
+      "y": 0.44,
       "owner": "neutral",
       "count": 4
     },

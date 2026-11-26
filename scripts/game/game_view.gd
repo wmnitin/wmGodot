@@ -5,7 +5,7 @@ signal restart_requested
 
 ## Sim space stays in pixels. The view maps that onto a small 3D meadow.
 const WORLD_SCALE := 0.012
-const PITCH_DEG := 58.0
+const PITCH_DEG := 68.0
 const BODY_H := 0.92
 const BAND_H := 0.16
 const ROOF_H := 0.28
@@ -535,39 +535,29 @@ func _make_tower(entry: Dictionary) -> Node3D:
 	node.set_meta("paints", paints)
 	_apply_tower_color(node)
 
-	var count := Label3D.new()
-	count.name = "Count"
-	count.font_size = 78
-	count.pixel_size = 0.01
-	count.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	count.outline_size = 22
-	count.modulate = Color.WHITE
-	count.outline_modulate = Palette.INK
-	count.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	node.add_child(count)
-	var badge := Label3D.new()
-	badge.name = "MaxBadge"
-	badge.text = "MAX"
-	badge.font_size = 42
-	badge.pixel_size = 0.006
-	badge.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	badge.modulate = Color("1A1206")
-	badge.outline_size = 12
-	badge.outline_modulate = Color("F5B72F")
+	node.add_child(_roof_label("Count", "", 78, 0.01, 22, Color.WHITE, Palette.INK))
+	var badge := _roof_label("MaxBadge", "MAX", 42, 0.006, 12, Color("1A1206"), Color("F5B72F"))
 	badge.visible = false
-	badge.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	node.add_child(badge)
-	var dots := Label3D.new()
-	dots.name = "Dots"
-	dots.font_size = 46
-	dots.pixel_size = 0.008
-	dots.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	dots.modulate = Color.WHITE
-	dots.outline_size = 10
-	dots.outline_modulate = Palette.INK
-	dots.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	node.add_child(dots)
+	node.add_child(_roof_label("Dots", "", 46, 0.008, 10, Color.WHITE, Palette.INK))
 	return node
+
+
+func _roof_label(node_name: String, text: String, font_size: int, pixel_size: float, outline: int, color: Color, outline_color: Color) -> Label3D:
+	var label := Label3D.new()
+	label.name = node_name
+	label.text = text
+	label.font_size = font_size
+	label.pixel_size = pixel_size
+	label.outline_size = outline
+	label.modulate = color
+	label.outline_modulate = outline_color
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.render_priority = 12
+	label.outline_render_priority = 11
+	label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return label
 
 
 func _make_floor(index: int, factory: bool, paints: Array) -> Node3D:
@@ -622,9 +612,13 @@ func _apply_tower_color(node: Node3D) -> void:
 	var base: Color = node.get_meta("team_color", Palette.NEUTRAL)
 	var flash := float(node.get_meta("flash", 0.0))
 	var shown := base.lerp(Color.WHITE, clampf(flash, 0.0, 1.0) * 0.72)
+	var alpha := float(node.get_meta("see_through", 1.0))
+	shown.a = alpha
 	for mat in node.get_meta("paints", []):
 		if mat is StandardMaterial3D:
-			(mat as StandardMaterial3D).albedo_color = shown
+			var painted := mat as StandardMaterial3D
+			painted.albedo_color = shown
+			painted.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA if alpha < 0.99 else BaseMaterial3D.TRANSPARENCY_DISABLED
 
 
 func _process(delta: float) -> void:
@@ -704,6 +698,7 @@ func _sync_towers(delta: float) -> void:
 			flash = move_toward(flash, 0.0, delta * 1.6)
 		node.set_meta("flash", flash)
 		_layout_tower(node, entry, delta)
+	_fade_occluders()
 
 
 func _layout_tower(node: Node3D, entry: Dictionary, delta: float) -> void:
@@ -771,6 +766,85 @@ func _layout_tower(node: Node3D, entry: Dictionary, delta: float) -> void:
 	dots.position = Vector3(0, peak + 0.2, 0)
 	var grab := 1.06 if id == _source_id and _mode == "link" else 1.0
 	node.scale = Vector3.ONE * grab
+
+
+func _fade_occluders() -> void:
+	var focus: Array = []
+	if _mode == "link" and _source_id != "":
+		focus.append(_source_id)
+		if _hover_id != "":
+			focus.append(_hover_id)
+	var infos := _tower_screens()
+	for info in infos:
+		var node: Node3D = info.node
+		var fade := 1.0
+		if not focus.is_empty() and str(info.id) not in focus:
+			for other in infos:
+				if str(other.id) not in focus:
+					continue
+				if float(info.z) < float(other.z) + 0.35:
+					continue
+				var cover_body := _cover_ratio(info.body, other.body)
+				var cover_label := _cover_ratio(info.body, other.label)
+				if cover_body > 0.08 or cover_label > 0.08:
+					fade = 0.4
+		if not is_equal_approx(float(node.get_meta("see_through", 1.0)), fade):
+			node.set_meta("see_through", fade)
+			_apply_tower_color(node)
+
+
+func _tower_screens() -> Array:
+	var infos: Array = []
+	for entry in sim.towers:
+		var base := _to_world(entry.pos)
+		var factory := str(entry.type) == "tank_factory"
+		var height := _stack_world(int(entry.count), factory)
+		var half := 1.45 if factory else 1.2
+		var body := _screen_box(base, half, half, height)
+		var label := _screen_box(base + Vector3(0, height, 0), 0.9, 0.45, 1.2)
+		infos.append({
+			"id": str(entry.id),
+			"z": base.z,
+			"body": body,
+			"label": label,
+			"node": _towers.get(str(entry.id)),
+		})
+	return infos
+
+
+func occlusion_problems() -> PackedStringArray:
+	var problems := PackedStringArray()
+	var infos := _tower_screens()
+	for front in infos:
+		for rear in infos:
+			if str(front.id) == str(rear.id):
+				continue
+			if float(front.z) < float(rear.z) + 0.45:
+				continue
+			var body_hit := _cover_ratio(front.body, rear.body)
+			var label_hit := _cover_ratio(front.body, rear.label)
+			if body_hit > 0.15 or label_hit > 0.15:
+				problems.append("%s covers %s body %.0f%% label %.0f%%" % [str(front.id), str(rear.id), body_hit * 100.0, label_hit * 100.0])
+	return problems
+
+
+func _screen_box(origin: Vector3, half_x: float, half_z: float, height: float) -> Rect2:
+	var corners: Array = []
+	for x in [-half_x, half_x]:
+		for z in [-half_z, half_z]:
+			corners.append(origin + Vector3(x, 0.0, z))
+			corners.append(origin + Vector3(x, height, z))
+	return _projected_bounds(corners)
+
+
+func _cover_ratio(front: Rect2, rear: Rect2) -> float:
+	if front.size.x < 1.0 or rear.size.x < 1.0 or not front.intersects(rear):
+		return 0.0
+	var overlap := front.intersection(rear)
+	var rear_area := rear.size.x * rear.size.y
+	if rear_area <= 1.0:
+		return 0.0
+	return (overlap.size.x * overlap.size.y) / rear_area
 
 
 func _sync_links() -> void:

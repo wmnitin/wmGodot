@@ -46,8 +46,8 @@
     {
       "id": "n_r2",
       "type": "outpost",
-      "x": 0.84,
-      "y": 0.34,
+      "x": 0.98,
+      "y": 0.28,
       "owner": "neutral",
       "count": 5
     },
@@ -62,8 +62,8 @@
     {
       "id": "e_r",
       "type": "outpost",
-      "x": 0.8,
-      "y": 0.16,
+      "x": 0.66,
+      "y": 0.14,
       "owner": "enemy",
       "count": 11
     }

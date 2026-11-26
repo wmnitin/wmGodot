@@ -38,8 +38,8 @@
     {
       "id": "fac",
       "type": "tank_factory",
-      "x": 0.4,
-      "y": 0.6,
+      "x": 0.48,
+      "y": 0.42,
       "owner": "neutral",
       "count": 6
     },

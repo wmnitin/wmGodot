@@ -43,6 +43,13 @@ func _process(_delta: float) -> void:
 		var game = _find_game()
 		if game != null:
 			game.sim.ai_enabled = false
+	elif _tick == 4:
+		var game = _find_game()
+		if game != null:
+			for entry in game.sim.towers:
+				game.sim.force_count(str(entry.id), 60)
+			game._sync_towers(8.0)
+			game._fit_camera(true)
 	elif _tick == 8:
 		_save("level_%02d_opening" % _index)
 		_index += 1
