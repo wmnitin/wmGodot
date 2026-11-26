@@ -1,0 +1,74 @@
+{
+  "id": "burrow_bend",
+  "name": "Burrow Bend",
+  "blurb": "A tank burrow sits on the bend. Take it before red does.",
+  "towers": [
+    {
+      "id": "p_w",
+      "type": "outpost",
+      "x": 0.3,
+      "y": 0.82,
+      "owner": "player",
+      "count": 22
+    },
+    {
+      "id": "p_e",
+      "type": "outpost",
+      "x": 0.66,
+      "y": 0.78,
+      "owner": "player",
+      "count": 16
+    },
+    {
+      "id": "n_w",
+      "type": "outpost",
+      "x": 0.24,
+      "y": 0.58,
+      "owner": "neutral",
+      "count": 4
+    },
+    {
+      "id": "fac",
+      "type": "tank_factory",
+      "x": 0.48,
+      "y": 0.62,
+      "owner": "neutral",
+      "count": 6
+    },
+    {
+      "id": "n_e",
+      "type": "outpost",
+      "x": 0.76,
+      "y": 0.46,
+      "owner": "neutral",
+      "count": 5
+    },
+    {
+      "id": "e_w",
+      "type": "outpost",
+      "x": 0.28,
+      "y": 0.18,
+      "owner": "enemy",
+      "count": 8
+    },
+    {
+      "id": "e_e",
+      "type": "outpost",
+      "x": 0.72,
+      "y": 0.16,
+      "owner": "enemy",
+      "count": 9
+    }
+  ],
+  "blockades": [],
+  "hazards": [],
+  "obstacles": [
+    {
+      "id": "hedge",
+      "shape": "circle",
+      "x": 0.88,
+      "y": 0.4,
+      "radius": 36
+    }
+  ]
+}

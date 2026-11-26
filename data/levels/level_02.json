@@ -1,0 +1,58 @@
+{
+  "id": "clover_nook",
+  "name": "Clover Nook",
+  "blurb": "One strong tower. Two sleepy clovers. The straight path is hedged.",
+  "towers": [
+    {
+      "id": "p",
+      "type": "outpost",
+      "x": 0.5,
+      "y": 0.8,
+      "owner": "player",
+      "count": 20
+    },
+    {
+      "id": "n_w",
+      "type": "outpost",
+      "x": 0.28,
+      "y": 0.58,
+      "owner": "neutral",
+      "count": 3
+    },
+    {
+      "id": "n_e",
+      "type": "outpost",
+      "x": 0.74,
+      "y": 0.56,
+      "owner": "neutral",
+      "count": 4
+    },
+    {
+      "id": "n_n",
+      "type": "outpost",
+      "x": 0.48,
+      "y": 0.36,
+      "owner": "neutral",
+      "count": 5
+    },
+    {
+      "id": "e",
+      "type": "outpost",
+      "x": 0.52,
+      "y": 0.16,
+      "owner": "enemy",
+      "count": 8
+    }
+  ],
+  "blockades": [],
+  "hazards": [],
+  "obstacles": [
+    {
+      "id": "hedge",
+      "shape": "circle",
+      "x": 0.5,
+      "y": 0.48,
+      "radius": 58
+    }
+  ]
+}
