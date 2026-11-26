@@ -432,6 +432,7 @@ func spawn_soldier(source_id: String, target_id: String, team: String, progress:
 		"speed": speed,
 		"kind": kind,
 		"swing": -1.0,
+		"fx": "",
 	})
 
 
@@ -715,15 +716,32 @@ func _cancel_meets() -> void:
 				continue
 			if used.has(int(left.id)) or used.has(int(right.id)):
 				continue
-			var blow := mini(maxi(int(left.get("power", 1)), 1), maxi(int(right.get("power", 1)), 1))
-			left.power = int(left.get("power", 1)) - blow
-			right.power = int(right.get("power", 1)) - blow
+			var left_power := int(left.get("power", 1))
+			var right_power := int(right.get("power", 1))
+			var blow := mini(maxi(left_power, 1), maxi(right_power, 1))
+			var left_dies := left_power - blow <= 0
+			var right_dies := right_power - blow <= 0
+			var left_pos := soldier_position(left)
+			var right_pos := soldier_position(right)
+			# Park them on the contact point so they meet, instead of crossing and vanishing.
+			if left_dies and not right_dies:
+				_snap_progress(left, right_pos)
+			elif right_dies and not left_dies:
+				_snap_progress(right, left_pos)
+			else:
+				var mid := (left_pos + right_pos) * 0.5
+				_snap_progress(left, mid)
+				_snap_progress(right, mid)
+			left.power = left_power - blow
+			right.power = right_power - blow
 			left.swing = elapsed
 			right.swing = elapsed
-			if int(left.power) <= 0:
+			left.fx = "tanked" if left_dies and str(right.get("kind", "")) == "tank" else "clash"
+			right.fx = "tanked" if right_dies and str(left.get("kind", "")) == "tank" else "clash"
+			if left_dies:
 				left.dead = true
 				used[int(left.id)] = true
-			if int(right.power) <= 0:
+			if right_dies:
 				right.dead = true
 				used[int(right.id)] = true
 			stats["cancelled"] = int(stats["cancelled"]) + blow
@@ -735,6 +753,8 @@ func _resolve_arrivals() -> void:
 		if bool(soldier.dead) or float(soldier.progress) < 1.0:
 			continue
 		soldier.dead = true
+		soldier.swing = elapsed
+		soldier.fx = "door"
 		var landed := int(soldier.get("power", 1))
 		_apply_power(str(soldier.target_id), str(soldier.team), landed)
 		if str(soldier.get("kind", "soldier")) == "tank":
@@ -768,9 +788,21 @@ func _spawn_on_link(link: Dictionary, team: String) -> bool:
 		"speed": float(profile.speed),
 		"kind": str(profile.kind),
 		"swing": -1.0,
+		"fx": "",
 	})
 	stats["sent"] = int(stats["sent"]) + 1
 	return true
+
+
+func _snap_progress(soldier: Dictionary, world: Vector2) -> void:
+	var ends := path_ends(str(soldier.source_id), str(soldier.target_id))
+	var delta := ends[1] - ends[0]
+	var span := delta.length_squared()
+	if span < 1.0:
+		return
+	var along := clampf((world - ends[0]).dot(delta) / span, 0.04, 0.96)
+	soldier.progress = along
+	soldier.prev_progress = along
 
 
 func _unit_profile(source_id: String) -> Dictionary:
@@ -878,7 +910,7 @@ func _sweep() -> void:
 			continue
 		# Leave a cancelled fighter in place for a short swing so the view can show it.
 		var swung := float(soldier.get("swing", -1.0))
-		if swung >= 0.0 and elapsed - swung < 0.36:
+		if swung >= 0.0 and elapsed - swung < 0.62:
 			kept.append(soldier)
 	soldiers = kept
 

@@ -42,14 +42,16 @@ static func icon_button(icon: Texture2D, size: float) -> Button:
 static func _box(bg: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = bg
-	style.set_corner_radius_all(28)
-	style.content_margin_left = 18
-	style.content_margin_right = 18
-	style.content_margin_top = 10
-	style.content_margin_bottom = 10
-	style.shadow_color = Color(0.08, 0.14, 0.28, 0.22)
-	style.shadow_size = 8
-	style.shadow_offset = Vector2(0, 4)
+	style.set_corner_radius_all(40)
+	style.content_margin_left = 22
+	style.content_margin_right = 22
+	style.content_margin_top = 12
+	style.content_margin_bottom = 12
+	style.border_width_bottom = 6
+	style.border_color = bg.darkened(0.22)
+	style.shadow_color = Color(0.08, 0.14, 0.28, 0.28)
+	style.shadow_size = 10
+	style.shadow_offset = Vector2(0, 5)
 	return style
 
 

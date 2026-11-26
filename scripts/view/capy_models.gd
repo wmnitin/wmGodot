@@ -4,8 +4,8 @@ class_name CapyModels
 ## Bevelled boxes, not hard cubes and not cylinders. Shared meshes, one material
 ## per team, so the meadow stays cheap on a phone.
 
-const FUR := Color("E39A4A")
-const SNOUT := Color("F6D7A8")
+const FUR := Color("9C6B3F")
+const SNOUT := Color("E8C49A")
 const NOSE := Color("3A2A22")
 const EYE := Color("241C18")
 const EAR := Color("F4A6B8")
@@ -26,7 +26,7 @@ func chamfer_mesh() -> ArrayMesh:
 		return _cache["chamfer"]
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
-	_emit_chamfer(tool, Vector3.ZERO, Vector3.ONE, 0.16, Color.WHITE)
+	_emit_chamfer(tool, Vector3.ZERO, Vector3.ONE, 0.22, Color.WHITE)
 	var mesh := tool.commit()
 	_cache["chamfer"] = mesh
 	return mesh
@@ -39,6 +39,18 @@ func team_material(team: String) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Palette.team(team)
 	mat.roughness = 0.72
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_cache[key] = mat
+	return mat
+
+
+func shade_material(team: String, darken: float) -> StandardMaterial3D:
+	var key := "shade_%s_%s" % [team, darken]
+	if _cache.has(key):
+		return _cache[key]
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Palette.team(team).darkened(darken)
+	mat.roughness = 0.8
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_cache[key] = mat
 	return mat
@@ -73,24 +85,23 @@ func soldier_mesh(team: String) -> ArrayMesh:
 		return _cache[key]
 	var tool := SurfaceTool.new()
 	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var scarf := Palette.team(team)
-	var dark := FUR.darkened(0.08)
-	# Big head, short legs, bevelled body. The sword is a separate small node.
-	_emit_chamfer(tool, Vector3(0, 0.16, 0), Vector3(0.42, 0.22, 0.34), 0.05, FUR)
-	_emit_chamfer(tool, Vector3(0, 0.34, 0.1), Vector3(0.34, 0.26, 0.3), 0.05, FUR)
-	_emit_chamfer(tool, Vector3(0, 0.3, 0.26), Vector3(0.16, 0.1, 0.12), 0.025, SNOUT)
-	_emit_chamfer(tool, Vector3(0, 0.31, 0.33), Vector3(0.06, 0.045, 0.04), 0.01, NOSE)
-	_emit_chamfer(tool, Vector3(-0.1, 0.5, 0.08), Vector3(0.07, 0.08, 0.06), 0.015, FUR)
-	_emit_chamfer(tool, Vector3(0.1, 0.5, 0.08), Vector3(0.07, 0.08, 0.06), 0.015, FUR)
-	_emit_chamfer(tool, Vector3(-0.1, 0.5, 0.1), Vector3(0.035, 0.04, 0.02), 0.006, EAR)
-	_emit_chamfer(tool, Vector3(0.1, 0.5, 0.1), Vector3(0.035, 0.04, 0.02), 0.006, EAR)
-	_emit_chamfer(tool, Vector3(-0.07, 0.36, 0.24), Vector3(0.045, 0.045, 0.03), 0.008, EYE)
-	_emit_chamfer(tool, Vector3(0.07, 0.36, 0.24), Vector3(0.045, 0.045, 0.03), 0.008, EYE)
-	_emit_chamfer(tool, Vector3(0, 0.28, 0.08), Vector3(0.3, 0.07, 0.16), 0.015, scarf)
-	_emit_chamfer(tool, Vector3(-0.1, 0.045, 0.08), Vector3(0.08, 0.09, 0.08), 0.015, dark)
-	_emit_chamfer(tool, Vector3(0.1, 0.045, 0.08), Vector3(0.08, 0.09, 0.08), 0.015, dark)
-	_emit_chamfer(tool, Vector3(-0.1, 0.04, -0.08), Vector3(0.08, 0.08, 0.08), 0.015, dark)
-	_emit_chamfer(tool, Vector3(0.1, 0.04, -0.08), Vector3(0.08, 0.08, 0.08), 0.015, dark)
+	var team_color := Palette.team(team)
+	var leg := FUR.darkened(0.12)
+	# Barrel body, big blunt head (about half the silhouette), flat snout, no tail.
+	_emit_chamfer(tool, Vector3(0, 0.16, -0.02), Vector3(0.5, 0.26, 0.52), 0.07, FUR)
+	_emit_chamfer(tool, Vector3(0, 0.4, 0.2), Vector3(0.44, 0.3, 0.36), 0.06, FUR)
+	_emit_chamfer(tool, Vector3(0, 0.34, 0.4), Vector3(0.32, 0.12, 0.16), 0.03, SNOUT)
+	_emit_chamfer(tool, Vector3(0, 0.35, 0.49), Vector3(0.1, 0.06, 0.04), 0.01, NOSE)
+	_emit_chamfer(tool, Vector3(-0.12, 0.58, 0.16), Vector3(0.08, 0.07, 0.06), 0.015, FUR)
+	_emit_chamfer(tool, Vector3(0.12, 0.58, 0.16), Vector3(0.08, 0.07, 0.06), 0.015, FUR)
+	_emit_chamfer(tool, Vector3(-0.1, 0.46, 0.36), Vector3(0.045, 0.04, 0.03), 0.008, EYE)
+	_emit_chamfer(tool, Vector3(0.1, 0.46, 0.36), Vector3(0.045, 0.04, 0.03), 0.008, EYE)
+	_emit_chamfer(tool, Vector3(0, 0.56, 0.18), Vector3(0.36, 0.08, 0.28), 0.02, team_color)
+	_emit_chamfer(tool, Vector3(0, 0.24, 0.08), Vector3(0.52, 0.1, 0.28), 0.02, team_color)
+	_emit_chamfer(tool, Vector3(-0.14, 0.04, 0.1), Vector3(0.1, 0.08, 0.1), 0.02, leg)
+	_emit_chamfer(tool, Vector3(0.14, 0.04, 0.1), Vector3(0.1, 0.08, 0.1), 0.02, leg)
+	_emit_chamfer(tool, Vector3(-0.14, 0.04, -0.14), Vector3(0.1, 0.08, 0.1), 0.02, leg)
+	_emit_chamfer(tool, Vector3(0.14, 0.04, -0.14), Vector3(0.1, 0.08, 0.1), 0.02, leg)
 	var mesh := tool.commit()
 	_cache[key] = mesh
 	return mesh
@@ -166,9 +177,9 @@ func make_soldier(team: String) -> Node3D:
 	root.add_child(body)
 	var sword := Node3D.new()
 	sword.name = "Sword"
-	sword.position = Vector3(0.2, 0.22, 0.08)
-	sword.rotation = Vector3(-0.4, 0.2, -0.9)
-	sword.scale = Vector3(0.55, 0.55, 0.55)
+	sword.position = Vector3(0.18, 0.14, 0.28)
+	sword.rotation = Vector3(-0.9, 0.15, -0.35)
+	sword.scale = Vector3(0.42, 0.42, 0.42)
 	var blade := MeshInstance3D.new()
 	blade.mesh = sword_mesh()
 	blade.material_override = vertex_material()
@@ -194,6 +205,23 @@ func make_tank(team: String) -> Node3D:
 	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	turret.add_child(mesh)
 	root.add_child(turret)
+	for i in 2:
+		var puff := MeshInstance3D.new()
+		puff.name = "Exhaust%d" % i
+		var ball := SphereMesh.new()
+		ball.radius = 0.08
+		ball.height = 0.16
+		ball.radial_segments = 8
+		ball.rings = 3
+		puff.mesh = ball
+		var smoke := StandardMaterial3D.new()
+		smoke.albedo_color = Color(0.75, 0.78, 0.8, 0.55)
+		smoke.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		smoke.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		puff.material_override = smoke
+		puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		puff.visible = false
+		root.add_child(puff)
 	return root
 
 

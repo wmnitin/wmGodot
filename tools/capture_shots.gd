@@ -119,7 +119,7 @@ func _begin_studio() -> void:
 		"blue1", "blue2", "blue3", "bluemax",
 		"red1", "red2", "red3", "redmax",
 		"neutral1", "neutral2", "neutral3", "neutralmax",
-		"factory", "soldier", "tank",
+		"factory", "soldier", "soldier_side", "tank",
 	]
 	_next_studio()
 
@@ -152,11 +152,11 @@ func _next_studio() -> void:
 		if item == "soldier":
 			_studio.rotation.y = -0.55
 			_studio.get_node("Sword").rotation = Vector3(-0.35, 0.1, -0.7)
-			_frame(Vector3(0, 0.28, 0.02), Vector3(1.15, 0.72, 1.85))
+			_frame(Vector3(0, 0.32, 0.08), Vector3(0.7, 0.55, 1.7))
 		else:
-			_studio.rotation.y = 0.35
-			_studio.get_node("Sword").rotation = Vector3(-0.9, 0.0, -0.4)
-			_frame(Vector3(0, 0.3, 0), Vector3(1.35, 0.48, 0.55))
+			_studio.rotation.y = 0.15
+			_studio.get_node("Sword").rotation = Vector3(-0.6, 0.1, -0.2)
+			_frame(Vector3(0, 0.3, 0), Vector3(1.7, 0.5, 0.35))
 	else:
 		_hide_towers()
 		_studio = _game._models.make_tank("player")
@@ -165,7 +165,7 @@ func _next_studio() -> void:
 		_studio.position = Vector3(0, 0, 0)
 		if item == "tank":
 			_studio.rotation.y = -0.6
-			_frame(Vector3(0, 0.28, 0), Vector3(1.55, 0.85, 1.7))
+			_frame(Vector3(0, 0.32, 0), Vector3(1.9, 1.05, 2.1))
 		else:
 			_studio.rotation.y = 0.4
 			_frame(Vector3(0, 0.26, 0), Vector3(1.9, 0.6, 0.45))
@@ -184,19 +184,19 @@ func _show_team_tower(item: String) -> void:
 		id = "n_w"
 		tag = "neutral"
 	var count := 4
-	var focus := 0.55
+	var focus := 0.9
 	var suffix := "level_1"
 	if item.ends_with("2"):
 		count = 18
-		focus = 1.05
+		focus = 1.5
 		suffix = "level_2"
 	elif item.ends_with("3"):
 		count = 40
-		focus = 1.45
+		focus = 2.15
 		suffix = "level_3"
 	elif item.ends_with("max"):
 		count = 60
-		focus = 1.55
+		focus = 2.25
 		suffix = "max"
 	var entry = _game.sim.tower(id)
 	entry.owner = owner
@@ -212,7 +212,7 @@ func _show_tower(id: String, count: int, file_name: String, focus_y: float) -> v
 	_studio = Node3D.new()
 	_studio.name = file_name
 	var focus: Vector3 = tower.global_position + Vector3(0, focus_y, 0)
-	_frame(focus, Vector3(3.1, 2.15, 3.6))
+	_frame(focus, Vector3(5.4, 3.3, 6.0))
 
 
 func _hide_towers() -> void:
