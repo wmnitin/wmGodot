@@ -31,6 +31,10 @@ var _toast: Label
 var _toast_time := 0.0
 var _hint_time := 0.0
 var _over := false
+var _paused := false
+var _settings: Control
+var _prev_level := {}
+var _heard_cancels := 0
 var _end_delay := 0.0
 var _link_root: Node2D
 var _actors: Node2D
@@ -181,6 +185,33 @@ func _build_hud() -> void:
 	_toast.offset_top = -280
 	_toast.offset_bottom = -170
 
+	var gear := UiKit.icon_button(ArtLibrary.texture(ArtLibrary.GEAR), 88)
+	gear.pressed.connect(_open_settings)
+	root.add_child(gear)
+	gear.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	gear.offset_left = 28
+	gear.offset_top = -268
+	gear.offset_right = 116
+	gear.offset_bottom = -180
+
+	_settings = load("res://scripts/game/settings_panel.gd").new()
+	_settings.closed.connect(func(): _paused = false)
+	root.add_child(_settings)
+	if not GameSettings.settings_changed.is_connected(_apply_live_settings):
+		GameSettings.settings_changed.connect(_apply_live_settings)
+
+
+func _open_settings() -> void:
+	_paused = true
+	AudioHooks.play_sfx("ui")
+	_settings.open_panel()
+
+
+func _apply_live_settings() -> void:
+	if sim == null:
+		return
+	sim.ai_params = GameSettings.params().duplicate()
+
 
 func _build_towers() -> void:
 	for child in _actors.get_children():
@@ -194,6 +225,7 @@ func _build_towers() -> void:
 		_punch[str(entry.id)] = 1.0
 		_prev_owner[str(entry.id)] = str(entry.owner)
 		_prev_count[str(entry.id)] = int(entry.count)
+		_prev_level[str(entry.id)] = sim.level_of(int(entry.count))
 
 
 func _make_tower(entry: Dictionary) -> Node2D:
@@ -275,6 +307,8 @@ func _make_tower(entry: Dictionary) -> Node2D:
 func _process(delta: float) -> void:
 	if sim == null:
 		return
+	if _paused:
+		return
 	if sim.state == "playing":
 		sim.step(delta)
 	elif not _over:
@@ -297,6 +331,10 @@ func _process(delta: float) -> void:
 
 func _sync(delta: float) -> void:
 	_layout()
+	var cancels := int(sim.stats.get("cancelled", 0))
+	if cancels > _heard_cancels:
+		AudioHooks.play_sfx("clash")
+	_heard_cancels = cancels
 	_you_label.text = "You  %d" % sim.victory_count("player")
 	_red_label.text = "Red  %d" % sim.victory_count("enemy")
 	_sync_towers(delta)
@@ -312,6 +350,10 @@ func _sync_towers(delta: float) -> void:
 			continue
 		node.position = _to_screen(entry.pos)
 		var level := sim.level_of(int(entry.count))
+		var prior_level := int(_prev_level.get(id, level))
+		if level > prior_level:
+			AudioHooks.play_sfx("level_up")
+		_prev_level[id] = level
 		if int(entry.count) != int(_prev_count.get(id, -1)):
 			_punch[id] = 1.16
 		if str(entry.owner) != str(_prev_owner.get(id, "")):
@@ -428,6 +470,7 @@ func _sync_soldiers() -> void:
 			sprite.scale = Vector2.ONE * 0.42
 			_actors.add_child(sprite)
 			_soldiers[id] = sprite
+			AudioHooks.play_sfx("spawn")
 		var ends := sim.path_ends(str(soldier.source_id), str(soldier.target_id))
 		var a := _to_screen(ends[0])
 		var b := _to_screen(ends[1])

@@ -1,54 +1,68 @@
 extends Node
 
-## Drop matching audio files into res://assets/audio later.
-## Missing files and disabled toggles are silent no-ops.
+## Plays the files in res://assets/audio. See assets/audio/CREDITS.md.
+## Missing files and disabled toggles stay silent. Several voices so a
+## spawn pop does not cut off a capture fanfare.
 
 const SFX := {
-	"ui": "res://assets/audio/ui.ogg",
-	"connect": "res://assets/audio/connect.ogg",
-	"cut": "res://assets/audio/cut.ogg",
-	"capture": "res://assets/audio/capture.ogg",
-	"win": "res://assets/audio/win.ogg",
-	"lose": "res://assets/audio/lose.ogg",
+	"ui": "res://assets/audio/ui.wav",
+	"connect": "res://assets/audio/connect.wav",
+	"cut": "res://assets/audio/cut.wav",
+	"capture": "res://assets/audio/capture.wav",
+	"spawn": "res://assets/audio/spawn.wav",
+	"clash": "res://assets/audio/clash.wav",
+	"level_up": "res://assets/audio/level_up.wav",
+	"win": "res://assets/audio/win.wav",
+	"lose": "res://assets/audio/lose.wav",
 }
-const MUSIC := "res://assets/audio/music.ogg"
+const MUSIC := "res://assets/audio/music.wav"
+const VOICE_COUNT := 6
 
-var _sfx: AudioStreamPlayer
+var _voices: Array[AudioStreamPlayer] = []
+var _next_voice := 0
+var _streams := {}
 var _music: AudioStreamPlayer
+var _music_stream: AudioStream
 
 
 func _ready() -> void:
-	_sfx = AudioStreamPlayer.new()
-	add_child(_sfx)
+	for _i in VOICE_COUNT:
+		var voice := AudioStreamPlayer.new()
+		add_child(voice)
+		_voices.append(voice)
 	_music = AudioStreamPlayer.new()
 	add_child(_music)
+	for id in SFX.keys():
+		_streams[id] = _load_stream(str(SFX[id]), false)
+	_music_stream = _load_stream(MUSIC, true)
 	if not GameSettings.settings_changed.is_connected(_on_settings):
 		GameSettings.settings_changed.connect(_on_settings)
+	_apply_volumes()
 
 
 func play_sfx(id: String) -> void:
-	if not GameSettings.sound_enabled:
+	if not GameSettings.sound_enabled or GameSettings.sound_volume <= 0.001:
 		return
-	var path: String = str(SFX.get(id, ""))
-	if path == "" or not ResourceLoader.exists(path):
-		return
-	var stream = load(path)
+	var stream: AudioStream = _streams.get(id)
 	if stream == null:
 		return
-	_sfx.stream = stream
-	_sfx.play()
+	var voice := _voices[_next_voice]
+	_next_voice = (_next_voice + 1) % _voices.size()
+	voice.stream = stream
+	voice.volume_db = _db(GameSettings.sound_volume)
+	voice.play()
 
 
 func start_music() -> void:
-	if not GameSettings.music_enabled:
+	if not GameSettings.music_enabled or GameSettings.music_volume <= 0.001:
 		stop_music()
 		return
-	if not ResourceLoader.exists(MUSIC):
+	if _music_stream == null:
 		return
+	_apply_volumes()
 	if _music.playing:
 		return
-	_music.stream = load(MUSIC)
-	_music.volume_db = -8.0
+	_music.stream = _music_stream
 	_music.play()
 
 
@@ -57,8 +71,43 @@ func stop_music() -> void:
 		_music.stop()
 
 
+func music_is_looping() -> bool:
+	if _music_stream == null:
+		_music_stream = _load_stream(MUSIC, true)
+	return _music_stream is AudioStreamWAV and _music_stream.loop_mode == AudioStreamWAV.LOOP_FORWARD
+
+
 func _on_settings() -> void:
-	if not GameSettings.music_enabled:
+	_apply_volumes()
+	if not GameSettings.music_enabled or GameSettings.music_volume <= 0.001:
 		stop_music()
-	else:
+	elif not _music.playing:
 		start_music()
+
+
+func _apply_volumes() -> void:
+	if _music:
+		_music.volume_db = _db(GameSettings.music_volume)
+	for voice in _voices:
+		voice.volume_db = _db(GameSettings.sound_volume)
+
+
+func _load_stream(path: String, looped: bool) -> AudioStream:
+	if path == "" or not ResourceLoader.exists(path):
+		return null
+	var loaded = load(path)
+	if loaded == null:
+		return null
+	var stream := loaded.duplicate() as AudioStream
+	if looped and stream is AudioStreamWAV:
+		var wav := stream as AudioStreamWAV
+		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		wav.loop_begin = 0
+		wav.loop_end = int(wav.mix_rate * wav.get_length())
+	return stream
+
+
+func _db(linear: float) -> float:
+	if linear <= 0.001:
+		return -80.0
+	return linear_to_db(linear)

@@ -2,7 +2,8 @@ extends Control
 
 signal play_requested
 
-var _pills := {}
+var _difficulty_label: Label
+var _settings: Control
 
 
 func _ready() -> void:
@@ -42,22 +43,13 @@ func _ready() -> void:
 	UiKit.outlined(subtitle, Palette.DEEP, Color(1, 1, 1, 0.7), 32)
 	box.add_child(subtitle)
 
-	var diff_label := Label.new()
-	diff_label.text = "Difficulty"
-	diff_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	UiKit.outlined(diff_label, Palette.INK, Palette.CREAM, 28)
-	box.add_child(diff_label)
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 16)
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_child(row)
-	for id in ["easy", "normal", "hard"]:
-		var pill := UiKit.button(str(GameSettings.DIFFICULTIES[id]["label"]), Palette.NEUTRAL, 32, 88)
-		pill.pressed.connect(_select_difficulty.bind(id))
-		row.add_child(pill)
-		_pills[id] = pill
-	_refresh_pills()
+	_difficulty_label = Label.new()
+	_difficulty_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	UiKit.outlined(_difficulty_label, Palette.INK, Palette.CREAM, 28)
+	box.add_child(_difficulty_label)
+	_refresh_difficulty()
+	if not GameSettings.settings_changed.is_connected(_refresh_difficulty):
+		GameSettings.settings_changed.connect(_refresh_difficulty)
 
 	var play := UiKit.button("Play", Palette.PLAYER, 48, 120)
 	play.pressed.connect(_on_play)
@@ -70,6 +62,30 @@ func _ready() -> void:
 	UiKit.outlined(hint, Palette.INK, Palette.CREAM, 26)
 	box.add_child(hint)
 
+	var gear := UiKit.icon_button(ArtLibrary.texture(ArtLibrary.GEAR), 96)
+	gear.pressed.connect(_open_settings)
+	add_child(gear)
+	gear.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	gear.offset_left = -140
+	gear.offset_top = 36
+	gear.offset_right = -36
+	gear.offset_bottom = 132
+
+	_settings = load("res://scripts/game/settings_panel.gd").new()
+	add_child(_settings)
+
+
+func _open_settings() -> void:
+	AudioHooks.play_sfx("ui")
+	_settings.open_panel()
+
+
+func _refresh_difficulty() -> void:
+	if _difficulty_label == null:
+		return
+	var label := str(GameSettings.DIFFICULTIES[GameSettings.difficulty]["label"])
+	_difficulty_label.text = "Difficulty: %s" % label
+
 
 func _add_background() -> void:
 	var rect := TextureRect.new()
@@ -79,23 +95,6 @@ func _add_background() -> void:
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(rect)
 	UiKit.full_rect(rect)
-
-
-func _select_difficulty(id: String) -> void:
-	GameSettings.set_difficulty(id)
-	AudioHooks.play_sfx("ui")
-	_refresh_pills()
-
-
-func _refresh_pills() -> void:
-	for id in _pills.keys():
-		var pill: Button = _pills[id]
-		var bg := Palette.PLAYER if id == GameSettings.difficulty else Color("5E6B80")
-		var style := UiKit._box(bg)
-		pill.add_theme_stylebox_override("normal", style)
-		pill.add_theme_stylebox_override("hover", UiKit._box(bg.lightened(0.08)))
-		pill.add_theme_stylebox_override("pressed", UiKit._box(bg.darkened(0.1)))
-		pill.add_theme_stylebox_override("focus", style)
 
 
 func _on_play() -> void:

@@ -23,6 +23,22 @@ static func button(text: String, bg: Color, font_size: int, height: float) -> Bu
 	return control
 
 
+static func icon_button(icon: Texture2D, size: float) -> Button:
+	var control := Button.new()
+	control.icon = icon
+	control.expand_icon = true
+	control.focus_mode = Control.FOCUS_NONE
+	control.custom_minimum_size = Vector2(size, size)
+	var plate := _box(Color("1B3A6B"))
+	plate.set_corner_radius_all(int(size * 0.32))
+	control.add_theme_stylebox_override("normal", plate)
+	control.add_theme_stylebox_override("hover", _box(Color("274E86")))
+	control.add_theme_stylebox_override("pressed", _box(Color("142C52")))
+	control.add_theme_stylebox_override("focus", plate)
+	control.add_theme_constant_override("icon_max_width", int(size * 0.62))
+	return control
+
+
 static func _box(bg: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = bg

@@ -236,6 +236,26 @@ def mud_image(size: int = 256) -> Image.Image:
     return supersample(size, draw)
 
 
+def gear_image(size: int = 128) -> Image.Image:
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    cx = cy = size / 2.0
+    cream = (255, 248, 238, 255)
+    for i in range(8):
+        ang = i * math.tau / 8.0
+        x = cx + math.cos(ang) * size * 0.32
+        y = cy + math.sin(ang) * size * 0.32
+        d.ellipse((x - size * 0.1, y - size * 0.1, x + size * 0.1, y + size * 0.1), fill=cream)
+    d.ellipse((cx - size * 0.28, cy - size * 0.28, cx + size * 0.28, cy + size * 0.28), fill=cream)
+    pixels = img.load()
+    hole = size * 0.11
+    for y in range(size):
+        for x in range(size):
+            if (x - cx) ** 2 + (y - cy) ** 2 <= hole ** 2:
+                pixels[x, y] = (0, 0, 0, 0)
+    return img
+
+
 def icon_image(size: int = 256) -> Image.Image:
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
@@ -315,6 +335,7 @@ def main() -> None:
     save(soldier_image((45, 125, 255, 255)), "soldier_player.png")
     save(soldier_image((255, 77, 85, 255)), "soldier_enemy.png")
     save(pip_image(), "pip.png")
+    save(gear_image(), "gear.png")
     icon = icon_image(256)
     save(icon, "icon.png")
     save(foreground_icon(), "icon_foreground.png")

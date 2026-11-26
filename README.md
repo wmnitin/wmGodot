@@ -96,7 +96,7 @@ Difficulty, from the title screen (Normal is the default):
 | Normal | 2.0 s | 15% | ×1.0 |
 | Hard | 1.15 s | 5% | ×1.30 |
 
-There is no settings menu yet. `GameSettings` already stores `difficulty`, `music_enabled`, and `sound_enabled` for that menu. `AudioHooks` plays a sound or the music loop when the matching file exists and the toggle is on, and does nothing when the file is missing.
+The gear button on the title screen and during a match opens settings. During a match the board pauses. Difficulty, music, and sound effects (each with its own on/off switch and volume) are saved in `user://capy_tower_wars_settings.cfg`.
 
 ## Adding a level, a tower type, or new art
 
@@ -110,7 +110,4 @@ There is no settings menu yet. `GameSettings` already stores `difficulty`, `musi
 - A behaviour that flags cannot express goes in `scripts/sim/abilities.gd`.
 - Art is only in `assets/sprites/`. Replace a PNG and keep the file name; the match code does not need to change. Towers are stacked from `tower_face.png` and `tower_top.png` (one floor, drawn with a slight top-down tilt). `tools/make_placeholders.py` redraws the current placeholders (needs Pillow). The font is Nunito ExtraBold under the SIL Open Font License (`assets/fonts/OFL.txt`).
 
-Expected audio, when you have it:
-
-- `assets/audio/music.ogg`
-- `assets/audio/ui.ogg`, `connect.ogg`, `cut.ogg`, `capture.ogg`, `win.ogg`, `lose.ogg`
+The soundtrack is already in `assets/audio/` (a looping tune plus spawn, clash, capture, level-up, win, and lose). Sources and the CC0 licence are in `assets/audio/CREDITS.md`. Rebuild the files with `python3 tools/make_audio.py`.

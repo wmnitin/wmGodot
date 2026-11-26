@@ -7,3 +7,5 @@ build/
 *.jks
 .DS_Store
 *.tmp
+__pycache__/
+*.pyc

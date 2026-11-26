@@ -3,18 +3,25 @@ extends SceneTree
 ## Headless rule checks plus a scripted play of Mirror Meadow.
 ##   godot --headless --path . -s res://tools/simulate_level.gd
 
+var _failed := 0
+
 
 func _init() -> void:
-	var failed := 0
 	print("Capy Tower Wars — rule check")
-	failed += _rules()
+	_failed = _rules()
 	print("Capy Tower Wars — winnable?")
-	failed += _winnable()
-	if failed == 0:
+	_failed += _winnable()
+	call_deferred("_late_checks")
+
+
+func _late_checks() -> void:
+	_failed += _check("settings save and load", _settings_roundtrip())
+	_failed += _audio_runtime()
+	if _failed == 0:
 		print("ALL CHECKS PASSED")
 		quit(0)
 	else:
-		print("FAILED CHECKS: %d" % failed)
+		print("FAILED CHECKS: %d" % _failed)
 		quit(1)
 
 
@@ -484,6 +491,60 @@ func _max_state() -> bool:
 	sim.spawn_soldier("p_e", "p_w", "player", 0.99)
 	_step(sim, 0.1)
 	return int(sim.tower("p_w").count) == 60 and sim.is_full(sim.tower("p_w"))
+
+
+func _settings_roundtrip() -> bool:
+	var settings = root.get_node_or_null("GameSettings")
+	if settings == null:
+		return false
+	var previous := {
+		"difficulty": settings.difficulty,
+		"music_enabled": settings.music_enabled,
+		"sound_enabled": settings.sound_enabled,
+		"music_volume": settings.music_volume,
+		"sound_volume": settings.sound_volume,
+	}
+	settings.set_difficulty("hard")
+	settings.set_music_enabled(false)
+	settings.set_sound_enabled(true)
+	settings.set_music_volume(0.25)
+	settings.set_sound_volume(0.4)
+	settings.difficulty = "easy"
+	settings.music_enabled = true
+	settings.music_volume = 1.0
+	settings.load_settings()
+	var ok: bool = settings.difficulty == "hard" \
+		and not settings.music_enabled \
+		and settings.sound_enabled \
+		and is_equal_approx(settings.music_volume, 0.25) \
+		and is_equal_approx(settings.sound_volume, 0.4)
+	settings.set_difficulty(str(previous.difficulty))
+	settings.set_music_enabled(bool(previous.music_enabled))
+	settings.set_sound_enabled(bool(previous.sound_enabled))
+	settings.set_music_volume(float(previous.music_volume))
+	settings.set_sound_volume(float(previous.sound_volume))
+	return ok
+
+
+func _audio_runtime() -> int:
+	var names := [
+		"music.wav", "spawn.wav", "clash.wav", "capture.wav", "level_up.wav",
+		"win.wav", "lose.wav", "ui.wav", "cut.wav", "connect.wav",
+	]
+	for file_name in names:
+		if not FileAccess.file_exists("res://assets/audio/%s" % file_name):
+			print("  FAIL  soundtrack files exist and music is set to loop")
+			return 1
+	var hooks = root.get_node_or_null("AudioHooks")
+	if hooks == null or not hooks.music_is_looping():
+		print("  FAIL  soundtrack files exist and music is set to loop")
+		return 1
+	hooks.play_sfx("ui")
+	hooks.play_sfx("spawn")
+	hooks.start_music()
+	var playing: bool = hooks._music.playing
+	print("  %s  soundtrack files exist and music is set to loop" % ("PASS" if playing else "FAIL"))
+	return 0 if playing else 1
 
 
 func _tower_height() -> bool:

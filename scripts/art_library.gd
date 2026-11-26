@@ -12,6 +12,7 @@ const SHADOW := "res://assets/sprites/shadow.png"
 const PIP := "res://assets/sprites/pip.png"
 const BACKGROUND := "res://assets/sprites/background.png"
 const ICON := "res://assets/sprites/icon.png"
+const GEAR := "res://assets/sprites/gear.png"
 const SOLDIER := {
 	"player": "res://assets/sprites/soldier_player.png",
 	"enemy": "res://assets/sprites/soldier_enemy.png",
