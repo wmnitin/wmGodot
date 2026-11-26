@@ -10,9 +10,11 @@ python3 tools/make_audio.py
 
 | File | What it is | Source | Licence |
 | --- | --- | --- | --- |
-| `music.wav` | Looping meadow tune | `tools/make_audio.py` | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| `music.wav` | Looping military march (bass drum, snare, brass) | `tools/make_audio.py` | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `spawn.wav` | Soldier step-off pop | `tools/make_audio.py` | CC0 1.0 |
-| `clash.wav` | Two soldiers cancel | `tools/make_audio.py` | CC0 1.0 |
+| `clash.wav` | Sword clash | `tools/make_audio.py` | CC0 1.0 |
+| `tank_shot.wav` | Tank arrival report | `tools/make_audio.py` | CC0 1.0 |
+| `tank_rumble.wav` | Looping tank engine | `tools/make_audio.py` | CC0 1.0 |
 | `capture.wav` | Tower flips owner | `tools/make_audio.py` | CC0 1.0 |
 | `level_up.wav` | Tower gains a floor | `tools/make_audio.py` | CC0 1.0 |
 | `win.wav` | Victory jingle | `tools/make_audio.py` | CC0 1.0 |

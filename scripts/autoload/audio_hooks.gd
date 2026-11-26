@@ -14,8 +14,10 @@ const SFX := {
 	"level_up": "res://assets/audio/level_up.wav",
 	"win": "res://assets/audio/win.wav",
 	"lose": "res://assets/audio/lose.wav",
+	"tank_shot": "res://assets/audio/tank_shot.wav",
 }
 const MUSIC := "res://assets/audio/music.wav"
+const RUMBLE := "res://assets/audio/tank_rumble.wav"
 const VOICE_COUNT := 6
 
 var _voices: Array[AudioStreamPlayer] = []
@@ -23,6 +25,8 @@ var _next_voice := 0
 var _streams := {}
 var _music: AudioStreamPlayer
 var _music_stream: AudioStream
+var _rumble: AudioStreamPlayer
+var _rumble_stream: AudioStream
 
 
 func _ready() -> void:
@@ -32,9 +36,12 @@ func _ready() -> void:
 		_voices.append(voice)
 	_music = AudioStreamPlayer.new()
 	add_child(_music)
+	_rumble = AudioStreamPlayer.new()
+	add_child(_rumble)
 	for id in SFX.keys():
 		_streams[id] = _load_stream(str(SFX[id]), false)
 	_music_stream = _load_stream(MUSIC, true)
+	_rumble_stream = _load_stream(RUMBLE, true)
 	if not GameSettings.settings_changed.is_connected(_on_settings):
 		GameSettings.settings_changed.connect(_on_settings)
 	_apply_volumes()
@@ -69,6 +76,21 @@ func start_music() -> void:
 func stop_music() -> void:
 	if _music and _music.playing:
 		_music.stop()
+
+
+func set_rumble(active: bool) -> void:
+	if _rumble == null or _rumble_stream == null:
+		return
+	var want := active and GameSettings.sound_enabled and GameSettings.sound_volume > 0.001
+	if not want:
+		if _rumble.playing:
+			_rumble.stop()
+		return
+	_rumble.volume_db = _db(GameSettings.sound_volume * 0.55)
+	if _rumble.playing:
+		return
+	_rumble.stream = _rumble_stream
+	_rumble.play()
 
 
 func music_is_looping() -> bool:

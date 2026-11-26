@@ -76,14 +76,14 @@ iOS is not set up. The project is already portrait (`display/window/handheld/ori
 
 These are the owner's rules, plus the choices made where the rules did not specify a number.
 
-- Each outgoing link sends **one soldier per second** (`SEND_INTERVAL = 1.0`). The first soldier steps off as soon as the link is made, then one follows every second. Sending does **not** lower the source count.
+- Each outgoing link sends **one soldier per second** (`SEND_INTERVAL = 1.0`). The first soldier steps off as soon as the link is made, then one follows every second. Sending does **not** lower the source count. A Tank Factory is the exception: it sends one tank about every 3 seconds.
 - Soldiers walk at 200 pixels per second on the playfield, so a longer line takes longer and shows more of them.
 - Player and enemy towers gain **+1 soldier every 2 seconds**, and only while they have **no** outgoing link. The growth timer pauses; it is not thrown away. Neutral towers never grow. Nothing grows past its max (60 for a normal outpost).
 - Enemy growth is scaled by the difficulty growth multiplier.
-- A friendly soldier adds 1. An enemy soldier subtracts 1. At 0 the tower flips to the attacker and the count stays 0 (that soldier is spent). The flipped tower loses its outgoing links. Links that were aimed at it stay, so an attack turns into support.
+- A friendly soldier adds 1. An enemy soldier subtracts 1. At 0 the tower flips to the attacker and the count stays 0 (that soldier is spent). The flipped tower loses its outgoing links. Links that were aimed at it stay, so an attack turns into support. A tank counts as 5 soldiers: it adds 5, subtracts 5, or cancels five enemy soldiers on the path. Leftover damage past 0 still captures once and does not leave a garrison.
 - Link limits: below 10 soldiers, 1 link (level 1); 10 or more, 2 links (level 2); 30 or more, 3 links (level 3); count caps at 60. If the count falls under a threshold, the **newest** extra links are cut. Level is the row of stars under the tower (gold means that slot is in use) and a gold ring at level 3.
 - At exactly 60, the tower shows a MAX badge. A friendly arrival does not raise the count. It is sent onward, round-robin, along that tower's outgoing links. A full tower with nowhere to send absorbs the soldier. At most 8 soldiers are in flight on one link.
-- Two of your own towers can be linked in only one direction. Dragging the other way removes the old link and creates the new one. Soldiers already walking the old way keep going and reinforce the destination. The red herd follows the same rule with its own towers. Soldiers of opposite owners still cancel one for one when both directions are open.
+- Two of your own towers can be linked in only one direction. Dragging the other way removes the old link and creates the new one. Soldiers already walking the old way keep going and reinforce the destination. The red herd follows the same rule with its own towers. Soldiers of opposite owners still cancel when both directions are open. Equal fighters remove each other. A tank removes five soldiers, then is removed.
 - You may link to an enemy tower, a neutral tower, or your own tower. You cannot link a tower to itself, duplicate a link, or cross a bramble. A swipe cuts only **your** lines. The bot cuts its own. Soldiers already on a cut line are removed.
 - You win when red owns no towers, even if some are still unclaimed. You lose when you own none. If both would hit zero together, it is a loss.
 - The bot waits one reaction interval, then picks a weak nearby target. It prefers your towers, then neutrals, then a weak ally. It obeys the same link cap. Sometimes it picks a random legal link instead (its mistake chance).
@@ -101,13 +101,14 @@ The gear button on the title screen and during a match opens settings. During a 
 ## Adding a level, a tower type, or new art
 
 - Levels are JSON files in `data/levels/`. Coordinates are 0–1 across the portrait field (`x` left to right, `y` top to bottom). Point `GameSettings.level_path` at another file when you add a level select. Each tower has `id`, `type`, `x`, `y`, `owner` (`player`, `enemy`, `neutral`, `world`), and `count`.
-- Tower behaviour lives in `data/tower_types.json`. Mirror Meadow only uses `outpost`. These types are already wired so a later level can drop them in without a rules rewrite:
+- Tower behaviour lives in `data/tower_types.json`. Mirror Meadow uses outposts plus one neutral Tank Factory in the center. These types are already wired so a later level can drop them in without a rules rewrite:
+  - `tank_factory` follows the same link, growth, and level rules. When owned, it sends tanks instead of foot soldiers (`unit_power` 5, `unit_speed` 0.6, about one every 3 seconds).
   - `factory` (Burrow Works) follows the outpost rules and grows twice as fast while it is not sending.
   - `artillery` (Seed Lobber) does not send soldiers. Every few seconds it spends one crew to damage the nearest capturable tower in range. Crew still grows, because it has no outgoing link.
   - `blockade` (Bramble) cannot be captured and blocks any link that would cross it.
   - `hazard` (Mud Pit) removes a soldier that walks into it.
 - A level may also list `blockades` and `hazards` as circles: `{ "x", "y", "radius" }`.
 - A behaviour that flags cannot express goes in `scripts/sim/abilities.gd`.
-- Art is only in `assets/sprites/`. Replace a PNG and keep the file name; the match code does not need to change. Towers are stacked from `tower_face.png` and `tower_top.png` (one floor, drawn with a slight top-down tilt). `tools/make_placeholders.py` redraws the current placeholders (needs Pillow). The font is Nunito ExtraBold under the SIL Open Font License (`assets/fonts/OFL.txt`).
+- The match is drawn in 3D (`scripts/game/game_view.gd`) from a fixed camera about 52 degrees above the meadow. Towers, soldiers, and tanks are built in code from Godot primitives (`scripts/view/capy_models.gd`), so there is no imported model pack. HUD, settings, and the title stay 2D. The project renderer is Mobile, which is the one meant for Android. Icons and the title art are still in `assets/sprites/`. `tools/make_placeholders.py` redraws those (needs Pillow). The font is Nunito ExtraBold under the SIL Open Font License (`assets/fonts/OFL.txt`).
 
-The soundtrack is already in `assets/audio/` (a looping tune plus spawn, clash, capture, level-up, win, and lose). Sources and the CC0 licence are in `assets/audio/CREDITS.md`. Rebuild the files with `python3 tools/make_audio.py`.
+The soundtrack is a looping military march plus the sound effects, including a sword clash and a tank shot. Sources and the CC0 licence are in `assets/audio/CREDITS.md`. Rebuild the files with `python3 tools/make_audio.py`.

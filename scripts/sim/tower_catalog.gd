@@ -54,4 +54,7 @@ func _normalize(id: String, raw: Dictionary) -> Dictionary:
 		"hazard_radius": float(raw.get("hazard_radius", 0.0)),
 		"ability": str(raw.get("ability", "")),
 		"params": params,
+		"unit_power": maxi(1, int(raw.get("unit_power", 1))),
+		"unit_speed": maxf(0.2, float(raw.get("unit_speed", 1.0))),
+		"unit_kind": str(raw.get("unit_kind", "soldier")),
 	}

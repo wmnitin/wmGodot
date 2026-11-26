@@ -43,6 +43,7 @@ var stats := {
 	"cancelled": 0,
 	"shots": 0,
 	"hazarded": 0,
+	"tank_arrivals": 0,
 }
 
 var rng := RandomNumberGenerator.new()
@@ -96,6 +97,7 @@ func setup_direct(data: Dictionary) -> void:
 		"cancelled": 0,
 		"shots": 0,
 		"hazarded": 0,
+		"tank_arrivals": 0,
 	}
 	level_name = str(data.get("name", "Level"))
 	level_id = str(data.get("id", "level"))
@@ -304,7 +306,7 @@ func soldier_position(soldier: Dictionary) -> Vector2:
 	return ends[0].lerp(ends[1], t)
 
 
-func spawn_soldier(source_id: String, target_id: String, team: String, progress: float) -> void:
+func spawn_soldier(source_id: String, target_id: String, team: String, progress: float, power: int = 1, speed: float = 1.0, kind: String = "soldier") -> void:
 	soldiers.append({
 		"id": _alloc_id(),
 		"link_id": -1,
@@ -314,6 +316,10 @@ func spawn_soldier(source_id: String, target_id: String, team: String, progress:
 		"progress": progress,
 		"prev_progress": progress,
 		"dead": false,
+		"power": maxi(1, power),
+		"speed": speed,
+		"kind": kind,
+		"swing": -1.0,
 	})
 
 
@@ -517,8 +523,9 @@ func _move(dt: float) -> void:
 			continue
 		var ends := path_ends(str(soldier.source_id), str(soldier.target_id))
 		var length := maxf(ends[0].distance_to(ends[1]), 40.0)
+		var speed_scale := float(soldier.get("speed", 1.0))
 		soldier.prev_progress = float(soldier.progress)
-		soldier.progress = float(soldier.progress) + BattleRules.SOLDIER_SPEED * dt / length
+		soldier.progress = float(soldier.progress) + BattleRules.SOLDIER_SPEED * speed_scale * dt / length
 
 
 func _apply_hazards() -> void:
@@ -596,11 +603,18 @@ func _cancel_meets() -> void:
 				continue
 			if used.has(int(left.id)) or used.has(int(right.id)):
 				continue
-			left.dead = true
-			right.dead = true
-			used[int(left.id)] = true
-			used[int(right.id)] = true
-			stats["cancelled"] = int(stats["cancelled"]) + 1
+			var blow := mini(maxi(int(left.get("power", 1)), 1), maxi(int(right.get("power", 1)), 1))
+			left.power = int(left.get("power", 1)) - blow
+			right.power = int(right.get("power", 1)) - blow
+			left.swing = elapsed
+			right.swing = elapsed
+			if int(left.power) <= 0:
+				left.dead = true
+				used[int(left.id)] = true
+			if int(right.power) <= 0:
+				right.dead = true
+				used[int(right.id)] = true
+			stats["cancelled"] = int(stats["cancelled"]) + blow
 
 
 func _resolve_arrivals() -> void:
@@ -609,7 +623,10 @@ func _resolve_arrivals() -> void:
 		if bool(soldier.dead) or float(soldier.progress) < 1.0:
 			continue
 		soldier.dead = true
-		apply_hit(str(soldier.target_id), str(soldier.team))
+		var landed := int(soldier.get("power", 1))
+		_apply_power(str(soldier.target_id), str(soldier.team), landed)
+		if str(soldier.get("kind", "soldier")) == "tank":
+			stats["tank_arrivals"] = int(stats.get("tank_arrivals", 0)) + 1
 		stats["arrived"] = int(stats["arrived"]) + 1
 
 
@@ -625,6 +642,7 @@ func _forward(entry: Dictionary, team: String) -> void:
 func _spawn_on_link(link: Dictionary, team: String) -> bool:
 	if _in_flight(int(link.id)) >= BattleRules.MAX_IN_FLIGHT:
 		return false
+	var profile := _unit_profile(str(link.source_id))
 	soldiers.append({
 		"id": _alloc_id(),
 		"link_id": int(link.id),
@@ -634,9 +652,53 @@ func _spawn_on_link(link: Dictionary, team: String) -> bool:
 		"progress": 0.0,
 		"prev_progress": 0.0,
 		"dead": false,
+		"power": int(profile.power),
+		"speed": float(profile.speed),
+		"kind": str(profile.kind),
+		"swing": -1.0,
 	})
 	stats["sent"] = int(stats["sent"]) + 1
 	return true
+
+
+func _unit_profile(source_id: String) -> Dictionary:
+	var source := tower(source_id)
+	if source.is_empty():
+		return {"power": 1, "speed": 1.0, "kind": "soldier"}
+	var spec := spec_of(source)
+	return {
+		"power": int(spec.get("unit_power", 1)),
+		"speed": float(spec.get("unit_speed", 1.0)),
+		"kind": str(spec.get("unit_kind", "soldier")),
+	}
+
+
+func _apply_power(target_id: String, attacker: String, amount: int) -> void:
+	var entry := tower(target_id)
+	if entry.is_empty() or amount <= 0:
+		return
+	var spec := spec_of(entry)
+	if not bool(spec.can_be_targeted):
+		return
+	if str(entry.owner) == attacker:
+		var cap := int(spec.max_count)
+		var space := maxi(cap - int(entry.count), 0)
+		var added := mini(amount, space)
+		if added > 0:
+			entry.count = int(entry.count) + added
+			_on_count_changed(entry)
+		var leftover := amount - added
+		if int(entry.count) >= cap:
+			for _i in leftover:
+				_forward(entry, attacker)
+		return
+	if not bool(spec.can_be_captured):
+		return
+	entry.count = int(entry.count) - amount
+	if int(entry.count) <= 0:
+		_capture(entry, attacker)
+	else:
+		_on_count_changed(entry)
 
 
 func _in_flight(link_id: int) -> int:
@@ -700,6 +762,11 @@ func _sweep() -> void:
 	var kept: Array = []
 	for soldier in soldiers:
 		if not bool(soldier.dead):
+			kept.append(soldier)
+			continue
+		# Leave a cancelled fighter in place for a short swing so the view can show it.
+		var swung := float(soldier.get("swing", -1.0))
+		if swung >= 0.0 and elapsed - swung < 0.36:
 			kept.append(soldier)
 	soldiers = kept
 

@@ -33,7 +33,7 @@ func _game():
 	if host == null:
 		return null
 	for child in host.get_children():
-		if child is Node2D and child.get("sim") != null:
+		if child.get("sim") != null:
 			return child
 	return null
 

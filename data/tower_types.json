@@ -18,6 +18,26 @@
       "hazard_radius": 0,
       "ability": ""
     },
+    "tank_factory": {
+      "display_name": "Tank Factory",
+      "category": "structure",
+      "can_grow": true,
+      "can_send": true,
+      "can_be_captured": true,
+      "can_be_targeted": true,
+      "counts_for_victory": true,
+      "grows_while_sending": false,
+      "growth_scale": 1.0,
+      "send_scale": 0.333333,
+      "max_count": 60,
+      "blocks_paths": false,
+      "block_radius": 0,
+      "hazard_radius": 0,
+      "ability": "",
+      "unit_power": 5,
+      "unit_speed": 0.6,
+      "unit_kind": "tank"
+    },
     "factory": {
       "display_name": "Burrow Works",
       "category": "structure",

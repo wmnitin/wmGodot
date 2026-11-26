@@ -1,7 +1,7 @@
 extends Control
 
 var _title: Control
-var _game: Node2D
+var _game: Node
 var _result_layer: CanvasLayer
 
 

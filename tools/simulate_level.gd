@@ -53,6 +53,11 @@ func _rules() -> int:
 	failed += _check("burrow works grow faster than an outpost", _factory())
 	failed += _check("a seed lobber fires and spends one crew", _artillery())
 	failed += _check("no enemy towers is a win; no player towers is a loss", _endings())
+	failed += _check("Mirror Meadow starts with a neutral tank factory", _has_tank_factory())
+	failed += _check("a tank factory sends one power-5 tank about every 3 seconds", _tank_rate())
+	failed += _check("tanks move at about 60 percent of soldier speed", _tank_speed())
+	failed += _check("one tank cancels five enemy soldiers", _tank_cancels_five())
+	failed += _check("a tank adds five on arrival and a bigger hit captures without a garrison", _tank_arrival())
 	return failed
 
 
@@ -76,9 +81,15 @@ func _winnable() -> int:
 		if not ok:
 			print("    " + str(extra.desc))
 	var easy_result := _play(easy, 11)
-	print("    note  easy seed 11 -> %s in %.1fs" % [str(easy_result.state), float(easy_result.time)])
+	failed += _check(
+		"scripted herd beats Easy (seed 11) in %.1fs" % float(easy_result.time),
+		str(easy_result.state) == "victory"
+	)
 	var hard_result := _play(hard, 11)
-	print("    note  hard seed 11 -> %s in %.1fs" % [str(hard_result.state), float(hard_result.time)])
+	failed += _check(
+		"scripted herd beats Hard (seed 11) in %.1fs" % float(hard_result.time),
+		str(hard_result.state) == "victory"
+	)
 	return failed
 
 
@@ -530,6 +541,7 @@ func _audio_runtime() -> int:
 	var names := [
 		"music.wav", "spawn.wav", "clash.wav", "capture.wav", "level_up.wav",
 		"win.wav", "lose.wav", "ui.wav", "cut.wav", "connect.wav",
+		"tank_shot.wav", "tank_rumble.wav",
 	]
 	for file_name in names:
 		if not FileAccess.file_exists("res://assets/audio/%s" % file_name):
@@ -588,3 +600,96 @@ func _artillery_volley() -> bool:
 	if int(sim.stats.shots) < 1:
 		return false
 	return str(sim.tower("p").owner) == "enemy" and int(sim.tower("p").count) == 0
+
+
+func _has_tank_factory() -> bool:
+	var sim := MatchSim.new()
+	if not sim.load_level(BattleRules.LEVEL_PATH):
+		return false
+	var found := false
+	for tower in sim.towers:
+		if str(tower.type) == "tank_factory" and str(tower.owner) == "neutral":
+			found = true
+	return found
+
+
+func _tank_pair() -> MatchSim:
+	return _fresh([
+		{"id": "a", "type": "tank_factory", "x": 0.2, "y": 0.5, "owner": "player", "count": 20},
+		{"id": "b", "type": "outpost", "x": 0.8, "y": 0.5, "owner": "enemy", "count": 40},
+	])
+
+
+func _tank_rate() -> bool:
+	var sim := _tank_pair()
+	if not bool(sim.try_connect("a", "b").ok):
+		return false
+	if int(sim.stats.sent) != 1:
+		return false
+	var unit = sim.soldiers[0]
+	if str(unit.kind) != "tank" or int(unit.power) != 5:
+		return false
+	if absf(float(unit.speed) - 0.6) > 0.02:
+		return false
+	_step(sim, 2.7)
+	if int(sim.stats.sent) != 1:
+		return false
+	_step(sim, 0.5)
+	return int(sim.stats.sent) == 2
+
+
+func _tank_speed() -> bool:
+	var sim := _tank_pair()
+	sim.try_connect("a", "b")
+	var ends := sim.path_ends("a", "b")
+	var length := ends[0].distance_to(ends[1])
+	_step(sim, 1.0)
+	var tank = null
+	for soldier in sim.soldiers:
+		if str(soldier.kind) == "tank" and not bool(soldier.dead):
+			tank = soldier
+			break
+	if tank == null:
+		return false
+	var expected := BattleRules.SOLDIER_SPEED * 0.6 / length
+	return absf(float(tank.progress) - expected) < 0.08
+
+
+func _tank_cancels_five() -> bool:
+	var sim := _tank_pair()
+	sim.spawn_soldier("a", "b", "player", 0.5, 5, 0.6, "tank")
+	for _i in 5:
+		sim.spawn_soldier("b", "a", "enemy", 0.5, 1, 1.0, "soldier")
+	sim.step(0.05)
+	var tank_alive := false
+	var enemy_alive := 0
+	for soldier in sim.soldiers:
+		if bool(soldier.dead):
+			continue
+		if str(soldier.kind) == "tank":
+			tank_alive = true
+		elif str(soldier.team) == "enemy":
+			enemy_alive += 1
+	return (not tank_alive) and enemy_alive == 0 and int(sim.stats.cancelled) == 5
+
+
+func _land_tank(target_owner: String, target_count: int) -> MatchSim:
+	var sim := _fresh([
+		{"id": "f", "type": "tank_factory", "x": 0.2, "y": 0.5, "owner": "player", "count": 10},
+		{"id": "t", "type": "outpost", "x": 0.8, "y": 0.5, "owner": target_owner, "count": target_count},
+		{"id": "keep", "type": "outpost", "x": 0.5, "y": 0.9, "owner": "enemy" if target_owner == "player" else "player", "count": 30},
+	])
+	sim.spawn_soldier("f", "t", "player", 0.7, 5, 0.6, "tank")
+	_step(sim, 1.3)
+	return sim
+
+
+func _tank_arrival() -> bool:
+	var ally := _land_tank("player", 10)
+	if int(ally.tower("t").count) != 15 or int(ally.stats.tank_arrivals) != 1:
+		return false
+	var foe := _land_tank("enemy", 7)
+	if int(foe.tower("t").count) != 2 or str(foe.tower("t").owner) != "enemy":
+		return false
+	var thin := _land_tank("enemy", 3)
+	return str(thin.tower("t").owner) == "player" and int(thin.tower("t").count) == 0
