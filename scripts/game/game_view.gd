@@ -1244,18 +1244,42 @@ func _fit_camera(force: bool = false) -> void:
 
 func _camera_points() -> Array:
 	var points: Array = []
-	var field := BattleRules.FIELD_SIZE * WORLD_SCALE
-	var pad := 0.35
-	for sx in [-1.0, 1.0]:
-		for sz in [-1.0, 1.0]:
-			points.append(Vector3(sx * (field.x * 0.5 + pad), 0.0, sz * (field.y * 0.5 + pad)))
+	var min_x := 1.0e9
+	var max_x := -1.0e9
+	var min_z := 1.0e9
+	var max_z := -1.0e9
+	var tallest := 1.2
 	for entry in sim.towers:
 		var base := _to_world(entry.pos)
 		var top := _stack_world(int(entry.count), str(entry.type) == "tank_factory") + 0.95
-		points.append(base)
+		tallest = maxf(tallest, top)
+		min_x = minf(min_x, base.x - 1.35)
+		max_x = maxf(max_x, base.x + 1.35)
+		min_z = minf(min_z, base.z - 1.15)
+		max_z = maxf(max_z, base.z + 1.15)
 		points.append(base + Vector3(0, top, 0))
-		points.append(base + Vector3(0.85, top * 0.45, 0))
-		points.append(base + Vector3(-0.85, top * 0.45, 0))
+		points.append(base + Vector3(1.15, top * 0.35, 0))
+		points.append(base + Vector3(-1.15, top * 0.35, 0))
+	for obstacle in sim.obstacles:
+		var center := _to_world(obstacle.pos)
+		var reach := float(obstacle.get("radius", 50.0)) * WORLD_SCALE + 0.35
+		if str(obstacle.get("shape", "")) == "rect":
+			var half: Vector2 = obstacle.half
+			reach = maxf(half.x, half.y) * WORLD_SCALE + 0.35
+		min_x = minf(min_x, center.x - reach)
+		max_x = maxf(max_x, center.x + reach)
+		min_z = minf(min_z, center.z - reach)
+		max_z = maxf(max_z, center.z + reach)
+	if min_x > max_x:
+		var field := BattleRules.FIELD_SIZE * WORLD_SCALE
+		min_x = -field.x * 0.5
+		max_x = field.x * 0.5
+		min_z = -field.y * 0.5
+		max_z = field.y * 0.5
+	for sx in [min_x, max_x]:
+		for sz in [min_z, max_z]:
+			points.append(Vector3(sx, 0.0, sz))
+			points.append(Vector3(sx, tallest, sz))
 	return points
 
 

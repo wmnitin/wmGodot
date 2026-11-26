@@ -1,0 +1,89 @@
+{
+  "id": "twin_gates",
+  "name": "Twin Gates",
+  "blurb": "A hedge splits the meadow. Each side is its own little war.",
+  "towers": [
+    {
+      "id": "p_l",
+      "type": "outpost",
+      "x": 0.22,
+      "y": 0.82,
+      "owner": "player",
+      "count": 22
+    },
+    {
+      "id": "p_r",
+      "type": "outpost",
+      "x": 0.8,
+      "y": 0.84,
+      "owner": "player",
+      "count": 18
+    },
+    {
+      "id": "n_l",
+      "type": "outpost",
+      "x": 0.2,
+      "y": 0.56,
+      "owner": "neutral",
+      "count": 3
+    },
+    {
+      "id": "n_l2",
+      "type": "outpost",
+      "x": 0.3,
+      "y": 0.36,
+      "owner": "neutral",
+      "count": 5
+    },
+    {
+      "id": "n_r",
+      "type": "outpost",
+      "x": 0.78,
+      "y": 0.54,
+      "owner": "neutral",
+      "count": 4
+    },
+    {
+      "id": "n_r2",
+      "type": "outpost",
+      "x": 0.84,
+      "y": 0.34,
+      "owner": "neutral",
+      "count": 5
+    },
+    {
+      "id": "e_l",
+      "type": "outpost",
+      "x": 0.22,
+      "y": 0.16,
+      "owner": "enemy",
+      "count": 8
+    },
+    {
+      "id": "e_r",
+      "type": "outpost",
+      "x": 0.8,
+      "y": 0.16,
+      "owner": "enemy",
+      "count": 11
+    }
+  ],
+  "blockades": [],
+  "hazards": [],
+  "obstacles": [
+    {
+      "id": "gate_b",
+      "shape": "circle",
+      "x": 0.5,
+      "y": 0.36,
+      "radius": 54
+    },
+    {
+      "id": "gate_c",
+      "shape": "circle",
+      "x": 0.5,
+      "y": 0.2,
+      "radius": 40
+    }
+  ]
+}

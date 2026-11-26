@@ -18,3 +18,8 @@ const FOOTPRINT := 70.0
 const FIELD_SIZE := Vector2(1000, 1480)
 
 const LEVEL_PATH := "res://data/levels/level_01.json"
+const LEVEL_COUNT := 10
+
+
+static func level_path(index: int) -> String:
+	return "res://data/levels/level_%02d.json" % clampi(index, 1, LEVEL_COUNT)

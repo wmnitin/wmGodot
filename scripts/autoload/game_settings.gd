@@ -33,6 +33,9 @@ var sound_enabled := true
 var music_volume := 0.7
 var sound_volume := 0.85
 var level_path := BattleRules.LEVEL_PATH
+var level_index := 1
+var unlocked_level := 1
+var cleared := {}
 
 
 func _ready() -> void:
@@ -91,6 +94,12 @@ func load_settings() -> void:
 	sound_enabled = bool(config.get_value("audio", "sound_enabled", sound_enabled))
 	music_volume = clampf(float(config.get_value("audio", "music_volume", music_volume)), 0.0, 1.0)
 	sound_volume = clampf(float(config.get_value("audio", "sound_volume", sound_volume)), 0.0, 1.0)
+	if config.has_section_key("progress", "unlocked"):
+		unlocked_level = clampi(int(config.get_value("progress", "unlocked", 1)), 1, BattleRules.LEVEL_COUNT)
+	if config.has_section_key("progress", "cleared"):
+		cleared = {}
+		for piece in str(config.get_value("progress", "cleared", "")).split(",", false):
+			cleared[piece] = true
 	settings_changed.emit()
 
 
@@ -101,9 +110,34 @@ func save_settings() -> void:
 	config.set_value("audio", "sound_enabled", sound_enabled)
 	config.set_value("audio", "music_volume", music_volume)
 	config.set_value("audio", "sound_volume", sound_volume)
+	config.set_value("progress", "unlocked", unlocked_level)
+	var ids: PackedStringArray = PackedStringArray()
+	for key in cleared.keys():
+		ids.append(str(key))
+	ids.sort()
+	config.set_value("progress", "cleared", ",".join(ids))
 	config.save(SAVE_PATH)
 
 
 func _commit() -> void:
 	save_settings()
 	settings_changed.emit()
+
+
+func set_level_index(index: int) -> void:
+	level_index = clampi(index, 1, BattleRules.LEVEL_COUNT)
+	level_path = BattleRules.level_path(level_index)
+
+
+func is_level_unlocked(index: int) -> bool:
+	return index >= 1 and index <= unlocked_level
+
+
+func is_level_cleared(index: int) -> bool:
+	return cleared.has(str(index))
+
+
+func note_victory() -> void:
+	cleared[str(level_index)] = true
+	unlocked_level = maxi(unlocked_level, mini(BattleRules.LEVEL_COUNT, level_index + 1))
+	_commit()

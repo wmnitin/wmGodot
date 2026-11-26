@@ -1,0 +1,89 @@
+{
+  "id": "daisy_divide",
+  "name": "Daisy Divide",
+  "blurb": "Red waits on three hills. Daisies in front, hedges behind them.",
+  "towers": [
+    {
+      "id": "p_w",
+      "type": "outpost",
+      "x": 0.32,
+      "y": 0.84,
+      "owner": "player",
+      "count": 24
+    },
+    {
+      "id": "p_e",
+      "type": "outpost",
+      "x": 0.7,
+      "y": 0.8,
+      "owner": "player",
+      "count": 22
+    },
+    {
+      "id": "n_w",
+      "type": "outpost",
+      "x": 0.18,
+      "y": 0.58,
+      "owner": "neutral",
+      "count": 4
+    },
+    {
+      "id": "n_c",
+      "type": "outpost",
+      "x": 0.48,
+      "y": 0.58,
+      "owner": "neutral",
+      "count": 5
+    },
+    {
+      "id": "n_e",
+      "type": "outpost",
+      "x": 0.82,
+      "y": 0.6,
+      "owner": "neutral",
+      "count": 4
+    },
+    {
+      "id": "e_w",
+      "type": "outpost",
+      "x": 0.16,
+      "y": 0.2,
+      "owner": "enemy",
+      "count": 10
+    },
+    {
+      "id": "e_c",
+      "type": "outpost",
+      "x": 0.5,
+      "y": 0.14,
+      "owner": "enemy",
+      "count": 12
+    },
+    {
+      "id": "e_e",
+      "type": "outpost",
+      "x": 0.84,
+      "y": 0.22,
+      "owner": "enemy",
+      "count": 10
+    }
+  ],
+  "blockades": [],
+  "hazards": [],
+  "obstacles": [
+    {
+      "id": "hedge_w",
+      "shape": "circle",
+      "x": 0.34,
+      "y": 0.3,
+      "radius": 36
+    },
+    {
+      "id": "hedge_e",
+      "shape": "circle",
+      "x": 0.66,
+      "y": 0.28,
+      "radius": 36
+    }
+  ]
+}

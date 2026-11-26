@@ -1,0 +1,97 @@
+{
+  "id": "thistle_works",
+  "name": "Thistle Works",
+  "blurb": "The thistle works builds tanks. Whoever holds it pushes the lane.",
+  "towers": [
+    {
+      "id": "p_w",
+      "type": "outpost",
+      "x": 0.26,
+      "y": 0.84,
+      "owner": "player",
+      "count": 26
+    },
+    {
+      "id": "p_e",
+      "type": "outpost",
+      "x": 0.64,
+      "y": 0.8,
+      "owner": "player",
+      "count": 22
+    },
+    {
+      "id": "n_w",
+      "type": "outpost",
+      "x": 0.2,
+      "y": 0.62,
+      "owner": "neutral",
+      "count": 3
+    },
+    {
+      "id": "n_c",
+      "type": "outpost",
+      "x": 0.46,
+      "y": 0.66,
+      "owner": "neutral",
+      "count": 4
+    },
+    {
+      "id": "fac",
+      "type": "tank_factory",
+      "x": 0.4,
+      "y": 0.6,
+      "owner": "neutral",
+      "count": 6
+    },
+    {
+      "id": "n_e",
+      "type": "outpost",
+      "x": 0.74,
+      "y": 0.5,
+      "owner": "neutral",
+      "count": 6
+    },
+    {
+      "id": "e_w",
+      "type": "outpost",
+      "x": 0.22,
+      "y": 0.18,
+      "owner": "enemy",
+      "count": 8
+    },
+    {
+      "id": "e_c",
+      "type": "outpost",
+      "x": 0.52,
+      "y": 0.14,
+      "owner": "enemy",
+      "count": 10
+    },
+    {
+      "id": "e_e",
+      "type": "outpost",
+      "x": 0.84,
+      "y": 0.24,
+      "owner": "enemy",
+      "count": 8
+    }
+  ],
+  "blockades": [],
+  "hazards": [],
+  "obstacles": [
+    {
+      "id": "hedge_w",
+      "shape": "circle",
+      "x": 0.32,
+      "y": 0.3,
+      "radius": 44
+    },
+    {
+      "id": "hedge_c",
+      "shape": "circle",
+      "x": 0.55,
+      "y": 0.28,
+      "radius": 44
+    }
+  ]
+}

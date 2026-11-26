@@ -1,0 +1,113 @@
+{
+  "id": "bramble_bowl",
+  "name": "Bramble Bowl",
+  "blurb": "Bramble rings the bowl. The tank yard in the middle is the prize.",
+  "towers": [
+    {
+      "id": "p1",
+      "type": "outpost",
+      "x": 0.28,
+      "y": 0.86,
+      "owner": "player",
+      "count": 22
+    },
+    {
+      "id": "p2",
+      "type": "outpost",
+      "x": 0.64,
+      "y": 0.82,
+      "owner": "player",
+      "count": 18
+    },
+    {
+      "id": "n1",
+      "type": "outpost",
+      "x": 0.18,
+      "y": 0.64,
+      "owner": "neutral",
+      "count": 3
+    },
+    {
+      "id": "n2",
+      "type": "outpost",
+      "x": 0.42,
+      "y": 0.68,
+      "owner": "neutral",
+      "count": 4
+    },
+    {
+      "id": "n3",
+      "type": "outpost",
+      "x": 0.74,
+      "y": 0.64,
+      "owner": "neutral",
+      "count": 4
+    },
+    {
+      "id": "fac",
+      "type": "tank_factory",
+      "x": 0.48,
+      "y": 0.5,
+      "owner": "neutral",
+      "count": 7
+    },
+    {
+      "id": "n4",
+      "type": "outpost",
+      "x": 0.26,
+      "y": 0.38,
+      "owner": "neutral",
+      "count": 6
+    },
+    {
+      "id": "n5",
+      "type": "outpost",
+      "x": 0.72,
+      "y": 0.38,
+      "owner": "neutral",
+      "count": 7
+    },
+    {
+      "id": "e1",
+      "type": "outpost",
+      "x": 0.16,
+      "y": 0.16,
+      "owner": "enemy",
+      "count": 14
+    },
+    {
+      "id": "e2",
+      "type": "outpost",
+      "x": 0.48,
+      "y": 0.12,
+      "owner": "enemy",
+      "count": 18
+    },
+    {
+      "id": "e3",
+      "type": "outpost",
+      "x": 0.82,
+      "y": 0.18,
+      "owner": "enemy",
+      "count": 16
+    }
+  ],
+  "blockades": [],
+  "hazards": [],
+  "obstacles": [
+    {
+      "id": "bowl_w",
+      "shape": "circle",
+      "x": 0.34,
+      "y": 0.26,
+      "radius": 48
+    },
+    {
+      "id": "bowl_e",
+      "shape": "circle",
+      "x": 0.64,
+      "y": 0.24,
+      "radius": 48
+    }
+  ]
+}

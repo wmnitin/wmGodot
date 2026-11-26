@@ -1,6 +1,7 @@
 extends Control
 
 signal play_requested
+signal levels_requested
 
 var _difficulty_label: Label
 var _settings: Control
@@ -99,4 +100,4 @@ func _add_background() -> void:
 
 func _on_play() -> void:
 	AudioHooks.play_sfx("ui")
-	play_requested.emit()
+	levels_requested.emit()

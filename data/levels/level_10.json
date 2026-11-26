@@ -1,0 +1,128 @@
+{
+  "id": "last_pasture",
+  "name": "Last Pasture",
+  "blurb": "Four red barns. One tank yard. Take the near clovers, then the yard.",
+  "towers": [
+    {
+      "id": "p1",
+      "type": "outpost",
+      "x": 0.2,
+      "y": 0.86,
+      "owner": "player",
+      "count": 24
+    },
+    {
+      "id": "p2",
+      "type": "outpost",
+      "x": 0.48,
+      "y": 0.84,
+      "owner": "player",
+      "count": 20
+    },
+    {
+      "id": "p3",
+      "type": "outpost",
+      "x": 0.78,
+      "y": 0.8,
+      "owner": "player",
+      "count": 16
+    },
+    {
+      "id": "n1",
+      "type": "outpost",
+      "x": 0.16,
+      "y": 0.64,
+      "owner": "neutral",
+      "count": 3
+    },
+    {
+      "id": "n2",
+      "type": "outpost",
+      "x": 0.38,
+      "y": 0.66,
+      "owner": "neutral",
+      "count": 4
+    },
+    {
+      "id": "n3",
+      "type": "outpost",
+      "x": 0.62,
+      "y": 0.62,
+      "owner": "neutral",
+      "count": 4
+    },
+    {
+      "id": "n4",
+      "type": "outpost",
+      "x": 0.84,
+      "y": 0.58,
+      "owner": "neutral",
+      "count": 5
+    },
+    {
+      "id": "fac",
+      "type": "tank_factory",
+      "x": 0.5,
+      "y": 0.46,
+      "owner": "neutral",
+      "count": 8
+    },
+    {
+      "id": "e1",
+      "type": "outpost",
+      "x": 0.14,
+      "y": 0.22,
+      "owner": "enemy",
+      "count": 14
+    },
+    {
+      "id": "e2",
+      "type": "outpost",
+      "x": 0.36,
+      "y": 0.14,
+      "owner": "enemy",
+      "count": 18
+    },
+    {
+      "id": "e3",
+      "type": "outpost",
+      "x": 0.64,
+      "y": 0.14,
+      "owner": "enemy",
+      "count": 18
+    },
+    {
+      "id": "e4",
+      "type": "outpost",
+      "x": 0.88,
+      "y": 0.28,
+      "owner": "enemy",
+      "count": 16
+    }
+  ],
+  "blockades": [],
+  "hazards": [],
+  "obstacles": [
+    {
+      "id": "pasture_w",
+      "shape": "circle",
+      "x": 0.28,
+      "y": 0.34,
+      "radius": 50
+    },
+    {
+      "id": "pasture_e",
+      "shape": "circle",
+      "x": 0.72,
+      "y": 0.32,
+      "radius": 50
+    },
+    {
+      "id": "pasture_c",
+      "shape": "circle",
+      "x": 0.5,
+      "y": 0.28,
+      "radius": 36
+    }
+  ]
+}

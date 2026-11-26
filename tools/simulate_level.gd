@@ -68,48 +68,59 @@ func _rules() -> int:
 func _winnable() -> int:
 	var failed := 0
 	var settings = load("res://scripts/autoload/game_settings.gd")
-	var normal: Dictionary = settings.DIFFICULTIES["normal"]
-	var easy: Dictionary = settings.DIFFICULTIES["easy"]
-	var hard: Dictionary = settings.DIFFICULTIES["hard"]
-	var primary := _play(normal, 11)
-	failed += _check(
-		"scripted herd beats Normal (seed 11) in %.1fs" % float(primary.time),
-		str(primary.state) == "victory"
-	)
-	if str(primary.state) != "victory":
-		print("    " + str(primary.desc))
-	for seed in [2, 7, 21]:
-		var extra := _play(normal, seed)
-		var ok := str(extra.state) == "victory"
-		print("    note  normal seed %d -> %s in %.1fs" % [seed, str(extra.state), float(extra.time)])
-		if not ok:
-			print("    " + str(extra.desc))
-	var easy_result := _play(easy, 11)
-	failed += _check(
-		"scripted herd beats Easy (seed 11) in %.1fs" % float(easy_result.time),
-		str(easy_result.state) == "victory"
-	)
-	var hard_result := _play(hard, 11)
-	failed += _check(
-		"scripted herd beats Hard (seed 11) in %.1fs" % float(hard_result.time),
-		str(hard_result.state) == "victory"
-	)
+	var names := {
+		"easy": settings.DIFFICULTIES["easy"],
+		"normal": settings.DIFFICULTIES["normal"],
+		"hard": settings.DIFFICULTIES["hard"],
+	}
+	for index in BattleRules.LEVEL_COUNT:
+		var number := index + 1
+		var path := BattleRules.level_path(number)
+		var level_name := _level_name(path)
+		for diff_name in ["easy", "normal", "hard"]:
+			var result := _play_path(path, names[diff_name], 11)
+			var won := str(result.state) == "victory" and bool(result.held)
+			var label := "level %02d %s %s %s in %.1fs" % [number, level_name, diff_name, str(result.state), float(result.time)]
+			failed += _check(label, won)
+			if not won:
+				print("    " + str(result.desc))
+		if number == 1:
+			for seed in [2, 7, 21]:
+				var extra := _play_path(path, names["normal"], seed)
+				print("    note  normal seed %d -> %s in %.1fs" % [seed, str(extra.state), float(extra.time)])
 	return failed
 
 
+func _level_name(path: String) -> String:
+	var data = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(data) != TYPE_DICTIONARY:
+		return "Level"
+	return str(data.get("name", "Level"))
+
+
 func _play(params: Dictionary, seed_value: int) -> Dictionary:
+	return _play_path(BattleRules.LEVEL_PATH, params, seed_value)
+
+
+func _play_path(path: String, params: Dictionary, seed_value: int) -> Dictionary:
 	var sim := MatchSim.new()
-	sim.load_level(BattleRules.LEVEL_PATH)
+	sim.load_level(path)
 	sim.configure(params, seed_value)
 	sim.ai_enabled = true
 	var bot := MirrorMarch.new()
 	var t := 0.0
 	var dt := 0.05
+	var held := true
+	var checked := false
 	while t < 180.0 and sim.state == "playing":
 		bot.consider(sim, dt)
 		sim.step(dt)
 		t += dt
-	return {"state": sim.state, "time": t, "desc": sim.describe()}
+		if not checked and t >= 12.0:
+			checked = true
+			if sim.state == "defeat" or sim.victory_count("player") < 1:
+				held = false
+	return {"state": sim.state, "time": t, "desc": sim.describe(), "held": held}
 
 
 func _check(label: String, ok: bool) -> int:

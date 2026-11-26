@@ -1,17 +1,20 @@
 extends Control
 
 signal restart_requested
+signal next_requested
 signal menu_requested
 
 var _victory := false
+var _has_next := false
 
 
 func is_result_screen() -> bool:
 	return true
 
 
-func setup(victory: bool) -> void:
+func setup(victory: bool, has_next: bool = false) -> void:
 	_victory = victory
+	_has_next = has_next
 
 
 func _ready() -> void:
@@ -74,7 +77,15 @@ func _ready() -> void:
 	UiKit.outlined(detail, Palette.INK, Palette.CREAM, 28)
 	box.add_child(detail)
 
-	var again := UiKit.button("Play again", Palette.PLAYER, 36, 100)
+	if _victory and _has_next:
+		var next := UiKit.button("Next level", Palette.PLAYER, 36, 100)
+		next.pressed.connect(func():
+			AudioHooks.play_sfx("ui")
+			next_requested.emit()
+		)
+		box.add_child(next)
+	var again_label := "Retry" if not _victory else "Play again"
+	var again := UiKit.button(again_label, Palette.PLAYER if not _victory else Color("3E6FBF"), 36, 100)
 	again.pressed.connect(func():
 		AudioHooks.play_sfx("ui")
 		restart_requested.emit()

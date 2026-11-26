@@ -1,0 +1,105 @@
+{
+  "id": "crooked_creek",
+  "name": "Crooked Creek",
+  "blurb": "The creek bends right. Red holds that bank. Grow up the left first.",
+  "towers": [
+    {
+      "id": "p1",
+      "type": "outpost",
+      "x": 0.2,
+      "y": 0.84,
+      "owner": "player",
+      "count": 28
+    },
+    {
+      "id": "p2",
+      "type": "outpost",
+      "x": 0.42,
+      "y": 0.74,
+      "owner": "player",
+      "count": 22
+    },
+    {
+      "id": "n1",
+      "type": "outpost",
+      "x": 0.16,
+      "y": 0.6,
+      "owner": "neutral",
+      "count": 3
+    },
+    {
+      "id": "n2",
+      "type": "outpost",
+      "x": 0.36,
+      "y": 0.5,
+      "owner": "neutral",
+      "count": 4
+    },
+    {
+      "id": "n3",
+      "type": "outpost",
+      "x": 0.54,
+      "y": 0.64,
+      "owner": "neutral",
+      "count": 5
+    },
+    {
+      "id": "n4",
+      "type": "outpost",
+      "x": 0.62,
+      "y": 0.56,
+      "owner": "neutral",
+      "count": 4
+    },
+    {
+      "id": "n5",
+      "type": "outpost",
+      "x": 0.56,
+      "y": 0.32,
+      "owner": "neutral",
+      "count": 6
+    },
+    {
+      "id": "e1",
+      "type": "outpost",
+      "x": 0.2,
+      "y": 0.16,
+      "owner": "enemy",
+      "count": 8
+    },
+    {
+      "id": "e2",
+      "type": "outpost",
+      "x": 0.46,
+      "y": 0.12,
+      "owner": "enemy",
+      "count": 10
+    },
+    {
+      "id": "e3",
+      "type": "outpost",
+      "x": 0.86,
+      "y": 0.18,
+      "owner": "enemy",
+      "count": 10
+    }
+  ],
+  "blockades": [],
+  "hazards": [],
+  "obstacles": [
+    {
+      "id": "creek",
+      "shape": "circle",
+      "x": 0.78,
+      "y": 0.5,
+      "radius": 40
+    },
+    {
+      "id": "bend",
+      "shape": "circle",
+      "x": 0.62,
+      "y": 0.22,
+      "radius": 36
+    }
+  ]
+}

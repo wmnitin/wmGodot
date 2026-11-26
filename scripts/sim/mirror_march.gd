@@ -50,11 +50,7 @@ func _link(sim: MatchSim) -> void:
 
 
 func _pick(sim: MatchSim, source: Dictionary):
-	var neutrals_left := false
-	for tower in sim.towers:
-		if str(tower.owner) == "neutral" and bool(sim.spec_of(tower).can_be_targeted):
-			neutrals_left = true
-			break
+	var neutrals_left := _reachable_neutral(sim)
 	var best = null
 	var best_score := -1.0e9
 	for tower in sim.towers:
@@ -84,6 +80,19 @@ func _pick(sim: MatchSim, source: Dictionary):
 	if best == null or best_score < 0.0:
 		return null
 	return best
+
+
+func _reachable_neutral(sim: MatchSim) -> bool:
+	for source in sim.towers_with_owner("player"):
+		if not sim.can_send_tower(source):
+			continue
+		for tower in sim.towers:
+			if str(tower.owner) != "neutral" or not bool(sim.spec_of(tower).can_be_targeted):
+				continue
+			if sim.path_blocked(str(source.id), str(tower.id)):
+				continue
+			return true
+	return false
 
 
 func _under_attack(sim: MatchSim, tower_id: String) -> bool:

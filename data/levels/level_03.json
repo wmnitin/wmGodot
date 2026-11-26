@@ -1,0 +1,73 @@
+{
+  "id": "puddle_lane",
+  "name": "Puddle Lane",
+  "blurb": "Two herds. The middle puddle makes you walk the sides.",
+  "towers": [
+    {
+      "id": "p_w",
+      "type": "outpost",
+      "x": 0.26,
+      "y": 0.82,
+      "owner": "player",
+      "count": 16
+    },
+    {
+      "id": "p_e",
+      "type": "outpost",
+      "x": 0.74,
+      "y": 0.84,
+      "owner": "player",
+      "count": 14
+    },
+    {
+      "id": "n_w",
+      "type": "outpost",
+      "x": 0.24,
+      "y": 0.56,
+      "owner": "neutral",
+      "count": 4
+    },
+    {
+      "id": "n_e",
+      "type": "outpost",
+      "x": 0.76,
+      "y": 0.54,
+      "owner": "neutral",
+      "count": 5
+    },
+    {
+      "id": "n_c",
+      "type": "outpost",
+      "x": 0.5,
+      "y": 0.4,
+      "owner": "neutral",
+      "count": 6
+    },
+    {
+      "id": "e",
+      "type": "outpost",
+      "x": 0.5,
+      "y": 0.16,
+      "owner": "enemy",
+      "count": 12
+    }
+  ],
+  "blockades": [],
+  "hazards": [],
+  "obstacles": [
+    {
+      "id": "hedge_w",
+      "shape": "circle",
+      "x": 0.36,
+      "y": 0.28,
+      "radius": 48
+    },
+    {
+      "id": "hedge_e",
+      "shape": "circle",
+      "x": 0.64,
+      "y": 0.3,
+      "radius": 48
+    }
+  ]
+}
